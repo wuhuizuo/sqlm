@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"git.code.oa.com/WeseeDo/httpserver/db"
 	"github.com/ahmetb/go-linq"
 	"github.com/jmoiron/sqlx/reflectx"
 )
@@ -103,7 +102,7 @@ type BetweenFilter struct {
 }
 
 // WherePattern imp for RowFilter interface
-func (f BetweenFilter) WherePattern() (*db.SQLWhere, error) {
+func (f BetweenFilter) WherePattern() (*SQLWhere, error) {
 	patterns := make(map[string]interface{})
 	fromKey := f.Col + "S"
 	toKey := f.Col + "E"
@@ -111,7 +110,7 @@ func (f BetweenFilter) WherePattern() (*db.SQLWhere, error) {
 	patterns[fromKey] = f.From
 	patterns[toKey] = f.To
 
-	return &db.SQLWhere{Format: formatter, Patterns: patterns}, nil
+	return &SQLWhere{Format: formatter, Patterns: patterns}, nil
 }
 
 // ColListFilter col value list filter

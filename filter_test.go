@@ -77,7 +77,7 @@ func TestStructFilter_wherePattern(t *testing.T) {
 		O *xxxStruct        `db:"o"`
 		P **xxxStruct       `db:"p"`
 		Z *string           `db:"-"`
-	}tt
+	}
 	tests := []struct {
 		name string
 		f    StructFilter
