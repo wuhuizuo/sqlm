@@ -95,25 +95,24 @@ func (f SelectorFilter) WherePattern() (*SQLWhere, error) {
 // TimeFormatFn for time object
 type TimeFormatFn func(time.Time) interface{}
 
-// IntervalFilter for time col between range
-type IntervalFilter struct {
-	Col        string
-	From 		interface{}
-	To 	 		interface{}
+// BetweenFilter for col value filter with range
+type BetweenFilter struct {
+	Col  string
+	From interface{}
+	To   interface{}
 }
 
 // WherePattern imp for RowFilter interface
-func (f IntervalFilter) WherePattern() (*db.SQLWhere, error) {
+func (f BetweenFilter) WherePattern() (*db.SQLWhere, error) {
 	patterns := make(map[string]interface{})
 	fromKey := f.Col + "S"
 	toKey := f.Col + "E"
 	formatter := fmt.Sprintf("%s BETWEEN :%s AND :%s", f.Col, fromKey, toKey)
 	patterns[fromKey] = f.From
-	patterns[toKey] =   f.To
+	patterns[toKey] = f.To
 
 	return &db.SQLWhere{Format: formatter, Patterns: patterns}, nil
 }
-
 
 // ColListFilter col value list filter
 type ColListFilter struct {
