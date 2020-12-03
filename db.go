@@ -5,6 +5,7 @@ package sqlm
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -21,18 +22,30 @@ var dbConCache = map[string]*sqlx.DB{}
 
 // Database sql database
 type Database struct {
-	Host          string `json:"host"`
-	Port          int32  `json:"port"`
-	DB            string `json:"db"`
-	User          string `json:"user"`
-	Password      string `json:"password"`
-	Driver        string `json:"driver"`
-	openImplement func(*Database, bool) (*sqlx.DB, error)
-	dbCon         *sqlx.DB
+	Host           string                 `json:"host"`
+	Port           int32                  `json:"port"`
+	DB             string                 `json:"db"`
+	User           string                 `json:"user"`
+	Password       string                 `json:"password"`
+	Driver         string                 `json:"driver"`
+	ConnectOptions map[string]interface{} `json:"connectOptions,omitempty"`
+	openImplement  func(*Database, bool) (*sqlx.DB, error)
+	dbCon          *sqlx.DB
 }
 
 func (p *Database) cacheKey() string {
-	return fmt.Sprintf("%s://%s:%s@tcp(%s:%d)/%s", p.Driver, p.User, p.Password, p.Host, p.Port, p.DB)
+	dsn := fmt.Sprintf("%s://%s:%s@tcp(%s:%d)/%s", p.Driver, p.User, p.Password, p.Host, p.Port, p.DB)
+	if len(p.ConnectOptions) == 0 {
+		return dsn
+	}
+
+	connectQuery := make(url.Values)
+	for k, v := range p.ConnectOptions {
+		connectQuery.Add(k, fmt.Sprint(v))
+	}
+	connectQueryStr := connectQuery.Encode()
+
+	return dsn + "?" + connectQueryStr
 }
 
 // Init db connection
