@@ -27,10 +27,10 @@ const (
 
 // Table Sql Table
 type Table struct {
-	*Database   `json:"database"`
-	TableHooks  `json:"-"`
-	TableName   string       `json:"tableName"`
-	TableSchema *TableSchema `json:"-"`
+	*Database    `json:"database"`
+	TableName    string `json:"tableName"`
+	TableHooks   `json:"-"`
+	*TableSchema `json:"-"`
 }
 
 // InsertHookFunc hook for table insert record operation
