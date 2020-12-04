@@ -1,5 +1,5 @@
 /*
-Package db 实现数据库对接的抽象封装,考虑性能和自由度要求不用ORM
+Package sqlm 实现数据库对接的抽象封装,考虑性能和自由度要求不用ORM
 */
 package sqlm
 
