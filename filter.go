@@ -142,7 +142,7 @@ func (f HashColFilter) WherePattern() (*SQLWhere, error) {
 	var whereFormatter []string
 	patterns := map[string]interface{}{}
 	for k, v := range f.Value {
-		childKey := fmt.Sprintf("JSON_EXTRACT(%s, \"$.%s\"", f.Col, k)
+		childKey := fmt.Sprintf("JSON_EXTRACT(%s, \"$.%s\")", f.Col, k)
 		childPattern := fmt.Sprintf("%s_%s", f.Col, k)
 		formatter := fmt.Sprintf("%s=:%s", childKey, childPattern)
 		whereFormatter = append(whereFormatter, formatter)
