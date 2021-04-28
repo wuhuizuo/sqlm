@@ -1,16 +1,12 @@
 package sqlm
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 
 	"github.com/jmoiron/sqlx"
 )
-
-// SQLiteMemroy SQLite build-in memroy
-const SQLiteMemroy = ":memroy:"
 
 type dbOptionSetter func(*sqlx.DB)
 
@@ -21,7 +17,6 @@ func DBCreateIterStructField(val reflect.Value, optionSetter dbOptionSetter) err
 	for i := 0; i < val.NumField(); i++ {
 		vf := val.Field(i)
 		if vf.IsNil() || !vf.CanAddr() ||
-			vf.MethodByName("SetOpenImplement").IsZero() ||
 			vf.MethodByName("Init").IsZero() ||
 			vf.MethodByName("Create").IsZero() {
 			continue
@@ -48,10 +43,9 @@ func DBCreateIterStructField(val reflect.Value, optionSetter dbOptionSetter) err
 
 // tableCreate 创建数据表
 func tableCreate(tableField reflect.Value) (*sqlx.DB, error) {
-	tableField.CanInterface()
-	// 注册自定义数据库打开方法
-	customDBOpenImp := reflect.ValueOf(dbOpenImplement)
-	tableField.MethodByName("SetOpenImplement").Call([]reflect.Value{customDBOpenImp})
+	if !tableField.CanInterface() {
+		return nil, errors.New("table field can not be used without panicking")
+	}
 
 	// 初始化连接数据库, 如果没有则创建
 	dbInitRet := tableField.MethodByName("Init").Call([]reflect.Value{reflect.ValueOf(true)})
@@ -74,64 +68,19 @@ func tableCreate(tableField reflect.Value) (*sqlx.DB, error) {
 func tableDBCon(tableField reflect.Value) (*sqlx.DB, error) {
 	dbConRet := tableField.MethodByName("Con").Call([]reflect.Value{})
 	if len(dbConRet) == 0 {
-		return nil, fmt.Errorf("db con none returns")
+		return nil, errors.New("db con none returns")
 	}
 	dbCon := dbConRet[0].Interface()
 	if dbCon == nil {
-		return nil, fmt.Errorf("db con failed")
+		return nil, errors.New("db con failed")
 	}
 	con, ok := dbCon.(*sqlx.DB)
 	if !ok {
 		return nil, fmt.Errorf("return type (%T) not matched, expect *sqlx.DB", dbCon)
 	}
 	if con == nil {
-		return nil, fmt.Errorf("return nil")
+		return nil, errors.New("return nil")
 	}
 
 	return con, nil
-}
-
-func dbOpenImplement(database *Database, create bool) (*sqlx.DB, error) {
-	switch database.Driver {
-	case DriverMysql:
-		return database.OpenMysql(create)
-	case DriverSQLite, DriverSQLite3:
-		return openSQLite3(database, create)
-	default:
-		return nil, fmt.Errorf("not implement type: %s", database.Driver)
-	}
-}
-
-// openSQLite3 open implement for SQLite db
-// 	d.DB 作为 文件名 basename
-// 	d.Host 作为 文件的目录路径
-func openSQLite3(d *Database, create bool) (*sqlx.DB, error) {
-	if d == nil {
-		return sqlx.Open(d.Driver, SQLiteMemroy)
-	}
-	if d.User != "" {
-		return nil, fmt.Errorf("not support user auth yet")
-	}
-	file := d.DB
-	if d.Host != "" {
-		file = filepath.Join(d.Host, file)
-	}
-	if create {
-		if err := fileCreateIfNotExist(file); err != nil {
-			return nil, err
-		}
-	}
-
-	dataSource := fmt.Sprintf("file:%s?cache=shared", file)
-	return sqlx.Open(d.Driver, dataSource)
-}
-
-func fileCreateIfNotExist(file string) error {
-	_, err := os.Stat(file)
-	if err == nil || !os.IsNotExist(err) {
-		return err
-	}
-
-	_, err = os.Create(file)
-	return err
 }
