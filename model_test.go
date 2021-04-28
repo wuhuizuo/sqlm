@@ -1,6 +1,8 @@
 package sqlm
 
 import (
+	"time"
+
 	"github.com/jmoiron/sqlx"
 )
 
@@ -23,11 +25,11 @@ type testRecord struct {
 	ID           int32      `json:"id,omitempty"           db:"id,type=INT,auto_increment,key"`
 	ProjectID    int32      `json:"projectId"              db:"projectId,type=INT,not_null,split"`
 	RuleID       int32      `json:"ruleId,omitempty"       db:"ruleId,type=INT,not_null,primary"`
-	CreateTime   Datetime   `json:"createtime,omitempty"   db:"createtime,type=DATETIME,default=CURRENT_TIMESTAMP,primary"`
+	CreateTime   time.Time  `json:"createtime,omitempty"   db:"createtime,type=DATETIME,default=CURRENT_TIMESTAMP,primary"`
 	SendStatus   uint8      `json:"sendStatus,omitempty"   db:"sendStatus,type=TINYINT,default=0,not_insert"`
 	EnsureUser   NullString `json:"ensureUser,omitempty"   db:"ensureUser,type=VARCHAR(32),not_insert"`
 	EnsureStatus uint8      `json:"ensureStatus,omitempty" db:"ensureStatus,type=TINYINT,default=0,not_insert"`
-	EnsureTime   Datetime   `json:"ensureTime,omitempty"   db:"ensureTime,type=DATETIME,not_insert"`
+	EnsureTime   time.Time  `json:"ensureTime,omitempty"   db:"ensureTime,type=DATETIME,not_insert"`
 	Title        string     `json:"title,omitempty"        db:"title,type=VARCHAR(128),not_null"`
 	Body         string     `json:"body,omitempty"         db:"body,type=VARCHAR(1024),not_null"`
 }
