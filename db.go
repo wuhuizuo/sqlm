@@ -1,14 +1,11 @@
-// Package sqlm 实现数据库对接的抽象封装,考虑性能和自由度要求不用ORM
 package sqlm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
 )
-
-// dbConCache store db connections for performance
-var dbConCache = map[string]*sqlx.DB{}
 
 // Database sql database
 //	dns format:
@@ -65,14 +62,20 @@ func (p *Database) Close() error {
 	return err
 }
 
-// Create database schema if not exists.
+// SetCreateor set database creator.
 func (p *Database) Create() error {
-	switch p.Driver {
-	case DriverMysql:
-		return new(mysqlCreateImp).Create(p)
-	case DriverSQLite3:
-		return new(sqlite3CreateImp).Create(p)
-	default:
-		return fmt.Errorf("not support create db for driver %s", p.Driver)
+	if p == nil {
+		return nil
 	}
+
+	if p.Driver == "" {
+		return errors.New("driver is not setted")
+	}
+
+	creator := createDrivers[p.Driver]
+	if creator == nil {
+		return fmt.Errorf("non create driver registed for driver %s", p.Driver)
+	}
+
+	return creator.Create(p.DSN)
 }

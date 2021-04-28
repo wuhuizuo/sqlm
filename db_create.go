@@ -10,23 +10,19 @@ import (
 )
 
 type DatabaseCreator interface {
-	Create(*Database) error
+	Create(dsn string) error
 }
 
 type mysqlCreateImp struct{}
 
-func (mi *mysqlCreateImp) Create(database *Database) error {
-	if database == nil {
-		return nil
-	}
-
-	db, err := sqlx.Open(database.Driver, database.DSN)
+func (mi *mysqlCreateImp) Create(dsn string) error {
+	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("host connect failed: %w", err)
 	}
 	defer db.Close()
 
-	mysqlCfg, err := mysql.ParseDSN(database.DSN)
+	mysqlCfg, err := mysql.ParseDSN(dsn)
 	if err != nil {
 		return err
 	}
@@ -36,14 +32,14 @@ func (mi *mysqlCreateImp) Create(database *Database) error {
 
 type sqlite3CreateImp struct{}
 
-func (si *sqlite3CreateImp) Create(database *Database) error {
-	if !strings.HasPrefix(database.DSN, "file:") {
+func (si *sqlite3CreateImp) Create(dsn string) error {
+	if !strings.HasPrefix(dsn, "file:") {
 		return nil
 	}
 
-	fileParts := strings.SplitN(database.DSN, "?", 2)
+	fileParts := strings.SplitN(dsn, "?", 2)
 	if len(fileParts) == 0 {
-		return fmt.Errorf("invalid sqlite3 dsn: %s", database.DSN)
+		return fmt.Errorf("invalid sqlite3 dsn: %s", dsn)
 	}
 
 	file := strings.TrimPrefix(fileParts[0], "file:")

@@ -594,7 +594,7 @@ func Delete(t TableFuncInterface, filter RowFilter) error {
 		}
 	}
 
-	if _, err := delete(t, filter); err != nil {
+	if _, err := deleteRows(t, filter); err != nil {
 		return err
 	}
 
@@ -608,7 +608,7 @@ func Delete(t TableFuncInterface, filter RowFilter) error {
 	return nil
 }
 
-func delete(t TableFuncInterface, filter RowFilter) (sql.Result, error) {
+func deleteRows(t TableFuncInterface, filter RowFilter) (sql.Result, error) {
 	where, err := filter.WherePattern()
 	if err != nil {
 		return nil, &ErrorSQLInvalid{"where条件组装失败", err}
