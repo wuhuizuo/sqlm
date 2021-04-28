@@ -36,20 +36,3 @@ func (c *NullString) Scan(val interface{}) error {
 func (c NullString) Value() (driver.Value, error) {
 	return string(c), nil
 }
-
-// Datetime store db datatime columns
-type Datetime string
-
-// Scan for interface sql.Scanner
-func (c *Datetime) Scan(val interface{}) error {
-	s, err := StringColScan(val)
-	if err == nil {
-		*c = Datetime(s)
-	}
-	return err
-}
-
-// Value for interface driver.Valuer
-func (c Datetime) Value() (driver.Value, error) {
-	return string(c), nil
-}
