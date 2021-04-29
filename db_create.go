@@ -1,11 +1,11 @@
 package sqlm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -22,11 +22,12 @@ func (mi *mysqlCreateImp) Create(dsn string) error {
 	}
 	defer db.Close()
 
-	mysqlCfg, err := mysql.ParseDSN(dsn)
-	if err != nil {
-		return err
+	dbName := getDBFromMysqlDSN(dsn)
+	if dbName == "" {
+		return errors.New("not found db name from dsn")
 	}
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", mysqlCfg.DBName))
+
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName))
 	return err
 }
 
@@ -38,21 +39,31 @@ func (si *sqlite3CreateImp) Create(dsn string) error {
 	}
 
 	fileParts := strings.SplitN(dsn, "?", 2)
-	if len(fileParts) == 0 {
-		return fmt.Errorf("invalid sqlite3 dsn: %s", dsn)
-	}
-
 	file := strings.TrimPrefix(fileParts[0], "file:")
 
 	return fileCreateIfNotExist(file)
 }
 
 func fileCreateIfNotExist(file string) error {
-	_, err := os.Stat(file)
-	if err == nil || !os.IsNotExist(err) {
-		return err
+	if file == "" {
+		return errors.New("empty file name")
 	}
 
-	_, err = os.Create(file)
+	_, err := os.Stat(file)
+	if err != nil && os.IsNotExist(err) {
+		_, err = os.Create(file)
+	}
+
 	return err
+}
+
+func getDBFromMysqlDSN(dsn string) string {
+	parts := strings.Split(dsn, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	dbPart := parts[len(parts)-1]
+
+	return strings.SplitN(dbPart, "?", 2)[0]
 }

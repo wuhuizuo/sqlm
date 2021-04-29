@@ -64,10 +64,6 @@ func (p *Database) Close() error {
 
 // SetCreateor set database creator.
 func (p *Database) Create() error {
-	if p == nil {
-		return nil
-	}
-
 	if p.Driver == "" {
 		return errors.New("driver is not setted")
 	}
