@@ -11,15 +11,14 @@ import (
 var (
 	// dbConCache store db connections for performance
 	dbConCache = map[string]*sqlx.DB{}
-	// database create driver map
-	createDrivers   = map[string]DatabaseCreator{}
-	createDriversMu sync.RWMutex
-)
 
-func init() {
-	RegisterDBCreator("mysql", new(mysqlCreateImp))
-	RegisterDBCreator("sqlite3", new(sqlite3CreateImp))
-}
+	// database create drivers
+	createDriversMu sync.RWMutex
+	createDrivers   = map[string]DatabaseCreator{
+		"mysql":   new(mysqlCreateImp),
+		"sqlite3": new(sqlite3CreateImp),
+	}
+)
 
 // RegisterDBCreator register database create for given driver.
 func RegisterDBCreator(name string, driver DatabaseCreator) {

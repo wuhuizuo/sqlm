@@ -13,7 +13,7 @@ func TestDatabase_Create(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	go fakeServer.Start()
+	go func() { _ = fakeServer.Start() }()
 	defer fakeServer.Close()
 
 	type fields struct {
@@ -103,7 +103,9 @@ func TestDatabase_Close(t *testing.T) {
 				DSN:    tt.fields.DSN,
 			}
 			if tt.fields.open {
-				p.Init(true)
+				if err := p.Init(true); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			if err := p.Close(); (err != nil) != tt.wantErr {

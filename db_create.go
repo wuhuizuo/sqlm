@@ -59,6 +59,8 @@ func fileCreateIfNotExist(file string) error {
 
 func getDBFromMysqlDSN(dsn string) string {
 	parts := strings.Split(dsn, "/")
+
+	// nolint: gomnd
 	if len(parts) < 2 {
 		return ""
 	}

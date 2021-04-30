@@ -70,7 +70,7 @@ func (p *Database) Create() error {
 
 	creator := createDrivers[p.Driver]
 	if creator == nil {
-		return fmt.Errorf("non create driver registed for driver %s", p.Driver)
+		return fmt.Errorf("non create driver registered for driver %s", p.Driver)
 	}
 
 	return creator.Create(p.DSN)
