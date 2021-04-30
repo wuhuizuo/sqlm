@@ -22,7 +22,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 		{
 			"RecordTest",
 			args{
-				&TableTest{},
+				&testTable{},
 				map[string]interface{}{
 					"id":           nil,
 					"ruleId":       nil,
@@ -34,7 +34,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 					"title":        nil,
 					"body":         nil,
 				},
-				&RecordTest{},
+				&testRecord{},
 			},
 			[]string{
 				"id",

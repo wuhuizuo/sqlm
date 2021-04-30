@@ -25,7 +25,7 @@ func TestTableSchemaColNames(t *testing.T) {
 	}{
 		{
 			"RecordTest",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
 			[]string{
 				"id",
 				"projectId",
@@ -62,35 +62,35 @@ func TestTableSchemaTargetName(t *testing.T) {
 	}{
 		{
 			"by struct value",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
-			RecordTest{},
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
+			testRecord{},
 			"xxx_0",
 			false,
 		},
 		{
 			"by struct ptr",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
-			&RecordTest{},
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
+			&testRecord{},
 			"xxx_0",
 			false,
 		},
 		{
 			"by empty filter/struct ptr",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
 			nil,
 			"xxx",
 			false,
 		},
 		{
 			"by filter but lacking the split column pattern",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
 			SelectorFilter{"ruleId": 123},
 			"",
 			true,
 		},
 		{
 			"by not filter or struct ptr",
-			newTestTableSchema(DriverMysql, "xxx", RecordTest{}),
+			newTestTableSchema(DriverMysql, "xxx", testRecord{}),
 			map[string]interface{}{"ruleId": 123},
 			"",
 			true,
