@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver
 )
 
@@ -116,6 +117,14 @@ func TestDatabase_Close(t *testing.T) {
 }
 
 func TestDatabase_Init(t *testing.T) {
+	fakeServer, err := newFakeMysqlServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = fakeServer.Start() }()
+	defer fakeServer.Close()
+
 	type fields struct {
 		Driver string
 		DSN    string
@@ -135,6 +144,24 @@ func TestDatabase_Init(t *testing.T) {
 			args{false},
 			false,
 		},
+		{
+			"mysql database create fail",
+			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
+			args{true},
+			true,
+		},
+		{
+			"new connection fail at sql open stage",
+			fields{"unknown", fmt.Sprintf("user:pass@tcp(%s)/fake", fakeServer.Listener.Addr())},
+			args{false},
+			true,
+		},
+		{
+			"connect to a not existed database failed",
+			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
+			args{false},
+			true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -144,6 +171,67 @@ func TestDatabase_Init(t *testing.T) {
 			}
 			if err := p.Init(tt.args.create); (err != nil) != tt.wantErr {
 				t.Errorf("Database.Init() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDatabase_Con(t *testing.T) {
+	fakeServer, err := newFakeMysqlServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = fakeServer.Start() }()
+	defer fakeServer.Close()
+
+	type fields struct {
+		Driver string
+		DSN    string
+		dbCon  *sqlx.DB
+	}
+	type args struct {
+		create []bool
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			"has conn, no args",
+			fields{"sqlite3", ":memory:", sqlx.MustOpen("sqlite3", ":memory:")},
+			args{[]bool{}},
+			false,
+		},
+		{
+			"not connected, no args",
+			fields{"sqlite3", ":memory:", nil},
+			args{[]bool{}},
+			false,
+		},
+		{
+			"not connected, no args, init falled",
+			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr()), nil},
+			args{[]bool{}},
+			true,
+		},
+		{
+			"not connected, need create, init ok",
+			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/fake", fakeServer.Listener.Addr()), nil},
+			args{[]bool{true}},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Database{
+				Driver: tt.fields.Driver,
+				DSN:    tt.fields.DSN,
+			}
+			if _, err := p.Con(tt.args.create...); (err != nil) != tt.wantErr {
+				t.Errorf("Database.Con() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

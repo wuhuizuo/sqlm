@@ -18,11 +18,17 @@ type Database struct {
 }
 
 // Con new/reuse db connection
-func (p *Database) Con(create ...bool) *sqlx.DB {
-	if p.dbCon == nil && p.Init(len(create) > 0 && create[0]) != nil {
-		panic("db connect failed")
+func (p *Database) Con(create ...bool) (*sqlx.DB, error) {
+	if p.dbCon != nil {
+		return p.dbCon, nil
 	}
-	return p.dbCon
+
+	err := p.Init(len(create) > 0 && create[0])
+	if err != nil {
+		return nil, err
+	}
+
+	return p.dbCon, nil
 }
 
 // Init db connection

@@ -116,7 +116,7 @@ type TableHookInterface interface {
 type TableFuncInterface interface {
 	TableHookInterface
 
-	Con(...bool) *sqlx.DB
+	Con(...bool) (*sqlx.DB, error)
 	// RowModel should return a struct point
 	RowModel() interface{}
 	Schema() *TableSchema
@@ -168,7 +168,11 @@ func Schema(t TableFuncInterface, table *Table) *TableSchema {
 // Create table if not exists
 func Create(t TableFuncInterface) error {
 	createSQL := t.Schema().CreateSQL()
-	_, err := t.Con().Exec(createSQL)
+	con, err := t.Con()
+	if err != nil {
+		return err
+	}
+	_, err = con.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("%w\n sql: %s", err, createSQL)
 	}
@@ -255,7 +259,11 @@ func withAutoCreate(t TableFuncInterface, targetTable string, exec tableExistExe
 	schema := *t.Schema()
 	schema.Name = targetTable
 	createSQL := schema.CreateSQL()
-	_, err = t.Con().Exec(createSQL)
+	con, err := t.Con()
+	if err != nil {
+		return err
+	}
+	_, err = con.Exec(createSQL)
 	if err != nil {
 		errTpl := "try to auto create table (%s) failed:\nsql: %s\nerror: %v"
 		return fmt.Errorf(errTpl, targetTable, createSQL, err)
@@ -271,7 +279,11 @@ func withAutoCreate(t TableFuncInterface, targetTable string, exec tableExistExe
 
 func execWhenExist(t TableFuncInterface, query string, arg interface{}) (ret sql.Result, err error) {
 	exec := func(et TableFuncInterface) error {
-		ret, err = et.Con().NamedExec(query, arg)
+		con, err := et.Con()
+		if err == nil {
+			ret, err = con.NamedExec(query, arg)
+		}
+
 		return err
 	}
 
@@ -281,7 +293,11 @@ func execWhenExist(t TableFuncInterface, query string, arg interface{}) (ret sql
 
 func execWithAutoCreate(t TableFuncInterface, table, query string, arg interface{}) (ret sql.Result, err error) {
 	exec := func(et TableFuncInterface) error {
-		ret, err = et.Con().NamedExec(query, arg)
+		con, err := et.Con()
+		if err == nil {
+			ret, err = con.NamedExec(query, arg)
+		}
+
 		return err
 	}
 
@@ -292,7 +308,11 @@ func execWithAutoCreate(t TableFuncInterface, table, query string, arg interface
 func queryWhenExist(t TableFuncInterface, query string, arg interface{}) (rows *sqlx.Rows, err error) {
 	exec := func(et TableFuncInterface) error {
 		// nolint: rowserrcheck
-		rows, err = et.Con().NamedQuery(query, arg)
+		con, err := et.Con()
+		if err == nil {
+			rows, err = con.NamedQuery(query, arg)
+		}
+
 		return err
 	}
 
@@ -331,7 +351,13 @@ func IsDup(t TableFuncInterface, row interface{}) (interface{}, error) {
 	if whereFormatter != "" {
 		query += " where " + whereFormatter
 	}
-	rows, queryErr := t.Con().NamedQuery(query, row)
+
+	con, err := t.Con()
+	if err != nil {
+		return false, err
+	}
+
+	rows, queryErr := con.NamedQuery(query, row)
 	if queryErr != nil || rows == nil {
 		return false, queryErr
 	}
@@ -453,8 +479,13 @@ func save(t TableFuncInterface, record interface{}) error {
 	whereConditionStr := strings.Join(wherePatterns, " AND ")
 	query := fmt.Sprintf("%s %s %s %s %s %s", SQLKeyUpdate, targetTable, SQLKeySet, sets, SQLKeyWhere, whereConditionStr)
 
+	con, err := t.Con()
+	if err != nil {
+		return err
+	}
+
 	// 执行
-	_, execErr := t.Con().NamedExec(query, record)
+	_, execErr := con.NamedExec(query, record)
 	return execErr
 }
 
