@@ -51,6 +51,9 @@ func (p *Database) Init(create bool) error {
 	if err != nil {
 		return fmt.Errorf("db connect failed: %w", err)
 	}
+	if err := db.Ping(); err != nil {
+		return err
+	}
 
 	dbConCache[conKey] = db
 	p.dbCon = db
