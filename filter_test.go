@@ -139,3 +139,26 @@ func TestStructFilter_wherePattern(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseJSONFieldValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		val     reflect.Value
+		want    string
+		wantErr bool
+	}{
+		{"error", reflect.ValueOf(make(chan bool)), "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseJSONFieldValue(tt.val)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseJSONFieldValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("parseJSONFieldValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
