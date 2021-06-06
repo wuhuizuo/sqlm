@@ -208,7 +208,7 @@ func (f StructFilter) wherePattern() (SelectorFilter, error) {
 
 		value, err := parseFieldValue(v)
 		if err != nil {
-			return selectorFilter, err
+			return nil, err
 		}
 		if value != nil {
 			selectorFilter[k] = value
