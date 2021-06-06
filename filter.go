@@ -2,6 +2,7 @@ package sqlm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -28,6 +29,10 @@ type RowFilterAnd []RowFilter
 
 // WherePattern imp for RowFilter interface
 func (f RowFilterAnd) WherePattern() (*SQLWhere, error) {
+	if len(f) == 0 {
+		return nil, nil
+	}
+
 	ret := SQLWhere{Patterns: make(map[string]interface{})}
 
 	for _, e := range f {
@@ -67,7 +72,7 @@ type LikeFilter struct {
 // WherePattern imp for RowFilter interface
 func (l LikeFilter) WherePattern() (*SQLWhere, error) {
 	if l.Key == "" || l.Value == "" {
-		return nil, nil
+		return nil, errors.New("lack key or value")
 	}
 
 	format := fmt.Sprintf("%s like :%s", l.Key, l.Key)
@@ -103,6 +108,16 @@ type BetweenFilter struct {
 
 // WherePattern imp for RowFilter interface
 func (f BetweenFilter) WherePattern() (*SQLWhere, error) {
+	if f.Col == "" {
+		return nil, errors.New("empty col")
+	}
+	if f.From == nil {
+		return nil, errors.New("invalid range because nil start")
+	}
+	if f.To == nil {
+		return nil, errors.New("invalid range because nil end")
+	}
+
 	patterns := make(map[string]interface{})
 	fromKey := f.Col + "S"
 	toKey := f.Col + "E"

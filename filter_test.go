@@ -1,9 +1,14 @@
 package sqlm
 
 import (
+	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/golang/mock/gomock"
 )
+
+//go:generate mockgen -package=sqlm -destination=./filter_mock.go github.com/wuhuizuo/sqlm RowFilter
 
 type xxxStruct struct {
 	L [3]int64 `db:"l" json:"l,omitempty"`
@@ -50,22 +55,58 @@ func TestFilterWherePattern(t *testing.T) {
 		want    *SQLWhere
 		wantErr bool
 	}{
+		{
+			"BetweenFilter-ok",
+			BetweenFilter{Col: "a", From: 123, To: 456},
+			&SQLWhere{
+				Format:   "a BETWEEN :aS AND :aE",
+				Patterns: map[string]interface{}{"aS": 123, "aE": 456},
+			},
+			false,
+		},
+		{"BetweenFilter-empty-col", BetweenFilter{From: 123, To: 456}, nil, true},
+		{"BetweenFilter-nil-from", BetweenFilter{Col: "a", To: 456}, nil, true},
+		{"BetweenFilter-nil-to", BetweenFilter{Col: "a", From: 123}, nil, true},
 		{"SelectorFilter-empty", SelectorFilter{}, nil, false},
-		{"SelectorFilter-valid",
+		{
+			"SelectorFilter-valid",
 			SelectorFilter{"a": 1},
-			&SQLWhere{Format: "a=:a", Patterns: SelectorFilter{"a": 1}},
-			false},
+			&SQLWhere{
+				Format:   "a=:a",
+				Patterns: SelectorFilter{"a": 1},
+			},
+			false,
+		},
 		{"ColListFilter-empty", ColListFilter{}, nil, true},
 		{"ColListFilter-noValues", ColListFilter{Col: "abc"}, nil, true},
-		{"ColListFilter-stringList",
+		{
+			"ColListFilter-stringList",
 			ColListFilter{Col: "abc", Values: []interface{}{"abc", "def"}},
 			&SQLWhere{Format: "abc='abc' OR abc='def'"},
-			false},
-		{"ColListFilter-numberList",
+			false,
+		},
+		{
+			"ColListFilter-numberList",
 			ColListFilter{Col: "abc", Values: []interface{}{123, 456.123}},
 			&SQLWhere{Format: "abc=123 OR abc=456.123"},
-			false},
+			false,
+		},
 		{"HashColFilter-empty", HashColFilter{}, nil, true},
+		{
+			"HashColFilter-value-nil",
+			HashColFilter{Col: "a", Value: nil},
+			&SQLWhere{Format: `(a='{}' OR a=NULL)`},
+			false,
+		},
+		{
+			"HashColFilter-filled",
+			HashColFilter{Col: "h", Value: HashCol{"a": 123, "b": "xxx"}},
+			&SQLWhere{
+				Format:   `JSON_EXTRACT(h, "$.a")=:h_a AND JSON_EXTRACT(h, "$.b")=:h_b`,
+				Patterns: map[string]interface{}{"h_a": 123, "h_b": "xxx"},
+			},
+			false,
+		},
 		{"IDListFilter-empty", IDListFilter{}, nil, true},
 		{
 			"IDListFilter-valid",
@@ -73,18 +114,26 @@ func TestFilterWherePattern(t *testing.T) {
 			&SQLWhere{Format: "id=123 OR id=456"},
 			false,
 		},
-		{"StructFilter-err",
+		{
+			"StructFilter-err",
 			StructFilter{
-				Cols: []string{
-					"y",
-				},
-				Value: &testStruct{
-					Y: []interface{}{make(chan bool)},
-				},
+				Cols:  []string{"y"},
+				Value: &testStruct{Y: []interface{}{make(chan bool)}},
 			},
 			nil,
 			true,
 		},
+		{
+			"LikeFilter-ok",
+			LikeFilter{Key: "a", Value: "%abcd_"},
+			&SQLWhere{
+				Format:   `a like :a`,
+				Patterns: map[string]interface{}{"a": "%abcd_"},
+			},
+			false,
+		},
+		{"LikeFilter-empty-key", LikeFilter{Value: "%abcd_"}, nil, true},
+		{"LikeFilter-empty-value", LikeFilter{Key: "a"}, nil, true},
 	}
 
 	for _, tt := range tests {
@@ -197,32 +246,92 @@ func Test_parseJSONFieldValue(t *testing.T) {
 	}
 }
 
-func TestStructFilter_WherePattern(t *testing.T) {
-	type fields struct {
-		Cols  []string
-		Value interface{}
-	}
+func TestRowFilterAnd_WherePattern(t *testing.T) {
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	joinRowFilter := NewMockRowFilter(mock)
+	joinRowFilter.EXPECT().WherePattern().AnyTimes().
+		Return(&SQLWhere{
+			Format:   "j=:j",
+			Patterns: map[string]interface{}{"j": 123},
+			Join: &JoinReplacer{
+				Join:                   true,
+				OriginTablePlaceholder: "oooo",
+				TempTablePlaceholder:   "tttt",
+			},
+		}, nil)
+
+	errRowFilter := NewMockRowFilter(mock)
+	errRowFilter.EXPECT().WherePattern().AnyTimes().
+		Return(nil, errors.New("mock error"))
+
 	tests := []struct {
 		name    string
-		fields  fields
+		f       RowFilterAnd
 		want    *SQLWhere
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{"empty list", nil, nil, false},
+		{
+			"one element",
+			RowFilterAnd{SelectorFilter{"a": 123}},
+			&SQLWhere{
+				Format:   "a=:a",
+				Patterns: map[string]interface{}{"a": 123},
+			},
+			false,
+		},
+		{
+			"with empty elments",
+			RowFilterAnd{SelectorFilter{"a": 123}, SelectorFilter{}},
+			&SQLWhere{
+				Format:   "a=:a",
+				Patterns: map[string]interface{}{"a": 123},
+			},
+			false,
+		},
+		{
+			"with nil elments",
+			RowFilterAnd{SelectorFilter{"a": 123}, nil},
+			&SQLWhere{
+				Format:   "a=:a",
+				Patterns: map[string]interface{}{"a": 123},
+			},
+			false,
+		},
+		{
+			"with two filled elments",
+			RowFilterAnd{SelectorFilter{"a": 123}, SelectorFilter{"b": 456}},
+			&SQLWhere{
+				Format:   "a=:a AND (b=:b)",
+				Patterns: map[string]interface{}{"a": 123, "b": 456},
+			},
+			false,
+		},
+		{
+			"with join elements",
+			RowFilterAnd{SelectorFilter{"a": 123}, joinRowFilter},
+			nil,
+			true,
+		},
+		{
+			"with join elements",
+			RowFilterAnd{SelectorFilter{"a": 123}, errRowFilter},
+			nil,
+			true,
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := StructFilter{
-				Cols:  tt.fields.Cols,
-				Value: tt.fields.Value,
-			}
-			got, err := f.WherePattern()
+			got, err := tt.f.WherePattern()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("StructFilter.WherePattern() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("RowFilterAnd.WherePattern() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("StructFilter.WherePattern() = %v, want %v", got, tt.want)
+				t.Errorf("RowFilterAnd.WherePattern() = %v, want %v", got, tt.want)
 			}
 		})
 	}
