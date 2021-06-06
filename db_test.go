@@ -229,6 +229,7 @@ func TestDatabase_Con(t *testing.T) {
 			p := &Database{
 				Driver: tt.fields.Driver,
 				DSN:    tt.fields.DSN,
+				dbCon:  tt.fields.dbCon,
 			}
 			if _, err := p.Con(tt.args.create...); (err != nil) != tt.wantErr {
 				t.Errorf("Database.Con() error = %v, wantErr %v", err, tt.wantErr)

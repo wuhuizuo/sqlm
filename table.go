@@ -279,12 +279,12 @@ func withAutoCreate(t TableFuncInterface, targetTable string, exec tableExistExe
 
 func execWhenExist(t TableFuncInterface, query string, arg interface{}) (ret sql.Result, err error) {
 	exec := func(et TableFuncInterface) error {
-		con, err := et.Con()
-		if err == nil {
-			ret, err = con.NamedExec(query, arg)
+		con, conErr := et.Con()
+		if conErr == nil {
+			ret, conErr = con.NamedExec(query, arg)
 		}
 
-		return err
+		return conErr
 	}
 
 	err = whenTableExist(t, exec)
@@ -293,12 +293,12 @@ func execWhenExist(t TableFuncInterface, query string, arg interface{}) (ret sql
 
 func execWithAutoCreate(t TableFuncInterface, table, query string, arg interface{}) (ret sql.Result, err error) {
 	exec := func(et TableFuncInterface) error {
-		con, err := et.Con()
-		if err == nil {
-			ret, err = con.NamedExec(query, arg)
+		con, errCon := et.Con()
+		if errCon == nil {
+			ret, errCon = con.NamedExec(query, arg)
 		}
 
-		return err
+		return errCon
 	}
 
 	err = withAutoCreate(t, table, exec)
@@ -307,13 +307,12 @@ func execWithAutoCreate(t TableFuncInterface, table, query string, arg interface
 
 func queryWhenExist(t TableFuncInterface, query string, arg interface{}) (rows *sqlx.Rows, err error) {
 	exec := func(et TableFuncInterface) error {
-		// nolint: rowserrcheck
-		con, err := et.Con()
-		if err == nil {
-			rows, err = con.NamedQuery(query, arg)
+		con, errCon := et.Con()
+		if errCon == nil {
+			rows, errCon = con.NamedQuery(query, arg)
 		}
 
-		return err
+		return errCon
 	}
 
 	err = whenTableExist(t, exec)
