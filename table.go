@@ -668,7 +668,7 @@ func deleteRows(t TableFuncInterface, filter RowFilter) (sql.Result, error) {
 
 // List Records from Table
 func List(t TableFuncInterface, filter RowFilter, options ListOptions) ([]interface{}, error) {
-	records := make([]interface{}, 0)
+	var records []interface{}
 	query, wherePatterns, err := t.Schema().SelectSQL(filter, options)
 	if err != nil {
 		return records, err
@@ -696,6 +696,7 @@ func List(t TableFuncInterface, filter RowFilter, options ListOptions) ([]interf
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
 	return records, nil
 }
 

@@ -49,7 +49,7 @@ func DBCreateDrivers() []string {
 	createDriversMu.RLock()
 	defer createDriversMu.RUnlock()
 
-	list := make([]string, 0, len(createDrivers))
+	var list []string
 	for name := range createDrivers {
 		list = append(list, name)
 	}
