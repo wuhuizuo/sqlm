@@ -3,6 +3,7 @@ package sqlm
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -617,6 +618,10 @@ func Update(t TableFuncInterface, filter RowFilter, updateParts map[string]inter
 
 // Delete records in Table
 func Delete(t TableFuncInterface, filter RowFilter) error {
+	if filter == nil {
+		return errors.New("filter should not be nil")
+	}
+
 	// call before hooks
 	for _, hook := range t.Hooks().Delete.Before {
 		if err := hook.(DeleteHookFunc)(t, filter); err != nil {
