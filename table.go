@@ -411,7 +411,8 @@ func Inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
 }
 
 func inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
-	ret := make([]int64, 0)
+	var ret []int64
+	
 	for _, r := range records {
 		id, err := insert(t, r)
 		if err != nil {
@@ -419,6 +420,7 @@ func inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
 		}
 		ret = append(ret, id)
 	}
+
 	return ret, nil
 }
 
