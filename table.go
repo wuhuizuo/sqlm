@@ -727,6 +727,10 @@ func GetFirst(t TableFuncInterface, filter RowFilter, record interface{}) error 
 
 // ScanRow scan struct from table row
 func ScanRow(t TableFuncInterface, rows *sqlx.Rows) (interface{}, error) {
+	if rows == nil {
+		return nil, errors.New("nil rows")
+	}
+
 	record := t.RowModel()
 	err := rows.StructScan(record)
 	return record, err

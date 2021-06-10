@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ahmetb/go-linq"
+	"github.com/jmoiron/sqlx"
 )
 
 func Test_loadDataForUpdate(t *testing.T) {
@@ -64,6 +65,35 @@ func Test_loadDataForUpdate(t *testing.T) {
 			linq.From(tt.want).OrderBy(func(e interface{}) interface{} { return e }).ToSlice(&sortWant)
 			if !reflect.DeepEqual(sortGot, sortWant) {
 				t.Errorf("loadDataForUpdate() = %v, want %v", sortGot, sortWant)
+			}
+		})
+	}
+}
+
+func TestScanRow(t *testing.T) {
+	type args struct {
+		t    TableFuncInterface
+		rows *sqlx.Rows
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{"nil rows", args{&testTable{}, nil}, nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ScanRow(tt.args.t, tt.args.rows)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ScanRow() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ScanRow() = %v, want %v", got, tt.want)
 			}
 		})
 	}
