@@ -145,10 +145,10 @@ func TestDatabase_Init(t *testing.T) {
 			false,
 		},
 		{
-			"mysql database create fail",
+			"mysql database create ok",
 			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
 			args{true},
-			true,
+			false,
 		},
 		{
 			"new connection fail at sql open stage",
@@ -158,7 +158,7 @@ func TestDatabase_Init(t *testing.T) {
 		},
 		{
 			"connect to a not existed database failed",
-			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
+			fields{"mysql", fmt.Sprintf("user:pass@tcp(%s)/not_exist2", fakeServer.Listener.Addr())},
 			args{false},
 			true,
 		},

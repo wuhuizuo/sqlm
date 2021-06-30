@@ -100,10 +100,10 @@ func TestFilterWherePattern(t *testing.T) {
 		},
 		{
 			"HashColFilter-filled",
-			HashColFilter{Col: "h", Value: HashCol{"a": 123, "b": "xxx"}},
+			HashColFilter{Col: "h", Value: HashCol{"a": 123}},
 			&SQLWhere{
-				Format:   `JSON_EXTRACT(h, "$.a")=:h_a AND JSON_EXTRACT(h, "$.b")=:h_b`,
-				Patterns: map[string]interface{}{"h_a": 123, "h_b": "xxx"},
+				Format:   `JSON_EXTRACT(h, "$.a")=:h_a`,
+				Patterns: map[string]interface{}{"h_a": 123},
 			},
 			false,
 		},
