@@ -16,7 +16,7 @@ type DatabaseCreator interface {
 type mysqlCreateImp struct{}
 
 func (mi *mysqlCreateImp) Create(dsn string) error {
-	db, err := sqlx.Open("mysql", dsn)
+	db, err := sqlx.Open("mysql", getMysqlDSNForCreate(dsn))
 	if err != nil {
 		return fmt.Errorf("host connect failed: %w", err)
 	}
@@ -68,4 +68,20 @@ func getDBFromMysqlDSN(dsn string) string {
 	dbPart := parts[len(parts)-1]
 
 	return strings.SplitN(dbPart, "?", 2)[0]
+}
+
+func getMysqlDSNForCreate(dsn string) string {
+	parts := strings.SplitN(dsn, "@", 2)
+	if len(parts) < 2 {
+		return dsn
+	}
+
+	hostAndPathPart := parts[1]
+	parts = strings.SplitN(hostAndPathPart, "/", 2)
+	// nolint: gomnd
+	if len(parts) < 2 {
+		return dsn
+	}
+
+	return strings.TrimSuffix(dsn, parts[len(parts)-1])
 }
