@@ -218,6 +218,9 @@ func (t *TableSchema) TargetNameWithFilter(filter RowFilter) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if where == nil {
+		return "", nil
+	}
 
 	for _, c := range t.splitByColumns {
 		errColMiss := fmt.Errorf("col %s is required in where patterns for compute target table name", c)
@@ -443,6 +446,9 @@ func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (QueryInfo, m
 	where, err := rf.WherePattern()
 	if err != nil {
 		return selectStatement, nil, fmt.Errorf("where条件组装失败:%s", err.Error())
+	}
+	if where == nil {
+		return selectStatement, nil, nil
 	}
 
 	selectStatement.Where = where.Format
