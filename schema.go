@@ -76,35 +76,6 @@ const (
 // tableCreateSQLTpl 创建表sql语句格式化模板
 const tableCreateSQLTpl = "CREATE TABLE IF NOT EXISTS %s (\n%s\n)"
 
-// QueryInfo query select sql info
-type QueryInfo struct {
-	Distinct      bool
-	Columns       []string
-	From          string
-	Where         string
-	OrderByColumn string
-	OrderDesc     bool
-}
-
-// String implement interface fmt.Stringer
-func (s *QueryInfo) String() string {
-	var distinct string
-	if s.Distinct {
-		distinct = "distinct"
-	}
-	query := fmt.Sprintf("select %s %s from %s", distinct, strings.Join(s.Columns, ","), s.From)
-	if s.Where != "" {
-		query += " where " + s.Where
-	}
-	if s.OrderByColumn != "" {
-		query += " ORDER BY " + s.OrderByColumn
-		if s.OrderDesc {
-			query += " DESC"
-		}
-	}
-	return query
-}
-
 // ColSchema for table column
 type ColSchema struct {
 	Name          string
@@ -407,8 +378,8 @@ func (t *TableSchema) CreateSQL() string {
 }
 
 // SelectSQL return sql statement for select quering
-func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (QueryInfo, map[string]interface{}, error) {
-	var selectStatement QueryInfo
+func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (Query, map[string]interface{}, error) {
+	var selectStatement Query
 
 	if !options.AllColumns && len(options.Columns) > 0 {
 		selectStatement.Columns = options.Columns
