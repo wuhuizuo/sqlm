@@ -2,6 +2,7 @@ package sqlm
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -326,6 +327,14 @@ func (t *Table) Get(filter RowFilter, record interface{}) error {
 // ScanRow scan struct from table row
 func (t *Table) ScanRow(rows *sqlx.Rows) (interface{}, error) {
 	record := t.RowModel()
+	if rows == nil {
+		return nil, errors.New("empty rows")
+	}
+
 	err := rows.StructScan(record)
-	return record, err
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
 }

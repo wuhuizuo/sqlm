@@ -72,7 +72,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 
 func TestScanRow(t *testing.T) {
 	type args struct {
-		t    TableFuncInterface
+		t    *Table
 		rows *sqlx.Rows
 	}
 
@@ -82,12 +82,20 @@ func TestScanRow(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-		{"nil rows", args{&testTable{}, nil}, nil, true},
+		{
+			name: "nil rows",
+			args: args{
+				t:    &Table{rowModeler: func() interface{} { return &testRecord{} }},
+				rows: nil,
+			},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ScanRow(tt.args.t, tt.args.rows)
+			got, err := tt.args.t.ScanRow(tt.args.rows)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ScanRow() error = %v, wantErr %v", err, tt.wantErr)
 				return
