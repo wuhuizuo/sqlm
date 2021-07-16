@@ -9,7 +9,7 @@ import (
 
 // TableOutput implement write support for db table
 type TableOutput struct {
-	backend TableFuncInterface
+	backend *Table
 }
 
 // Write implement io.Writer
@@ -21,12 +21,12 @@ func (o TableOutput) Write(data []byte) (int, error) {
 }
 
 // NewTableOutput return write device with db table backend.
-func NewTableOutput(t TableFuncInterface) io.Writer {
+func NewTableOutput(t *Table) io.Writer {
 	return TableOutput{t}
 }
 
 // Write common write logic for table backend
-func Write(t TableFuncInterface, p []byte) (int, error) {
+func Write(t *Table, p []byte) (int, error) {
 	// TODO: 后续考虑更佳性能的序列化和反序列化方案
 	record := t.RowModel()
 	if err := json.Unmarshal(p, record); err != nil {
@@ -35,5 +35,6 @@ func Write(t TableFuncInterface, p []byte) (int, error) {
 	if _, err := t.Insert(record); err != nil {
 		return 0, err
 	}
+
 	return len(p), nil
 }

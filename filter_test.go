@@ -211,7 +211,7 @@ func TestStructFilter_wherePattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.f.wherePattern()
+			got, err := tt.f.transFilter()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("StructFilter.WherePattern() error = %v, wantErr %v", err, tt.wantErr)
 				return
