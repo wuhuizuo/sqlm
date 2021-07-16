@@ -204,14 +204,15 @@ type StructFilter struct {
 
 // WherePattern return the parts for compose sql update/delete query
 func (f StructFilter) WherePattern() (*SQLWhere, error) {
-	filter, err := f.wherePattern()
+	filter, err := f.transFilter()
 	if err != nil {
 		return nil, err
 	}
+
 	return filter.WherePattern()
 }
 
-func (f StructFilter) wherePattern() (SelectorFilter, error) {
+func (f StructFilter) transFilter() (SelectorFilter, error) {
 	fieldInfos := reflectx.NewMapper(DBSchemaTag).FieldMap(reflect.ValueOf(f.Value))
 
 	selectorFilter := SelectorFilter{}
