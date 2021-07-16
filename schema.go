@@ -448,14 +448,18 @@ func colSchemaDefault(f *reflectx.FieldInfo) (defaultOn bool, defaultVal string)
 
 func colSchemaOnUpdate(f *reflectx.FieldInfo) (onUpdateEnable bool, updateVal string) {
 	onUpdateEnable, updateVal = colSchemaValSetter(f, DBKeyOnUpdate)
-	if onUpdateEnable && (updateVal == "" || updateVal == emptyStrColAsignPart) {
+	if !onUpdateEnable {
+		return false, updateVal
+	}
+
+	if updateVal == "" || updateVal == emptyStrColAsignPart {
 		defaultEnable, defaultVal := colSchemaValSetter(f, DBKeyDefault)
 		if defaultEnable {
 			updateVal = defaultVal
 		}
 	}
 
-	return
+	return true, updateVal
 }
 
 func colSchemaValSetter(field *reflectx.FieldInfo, optionKey string) (exist bool, setVal string) {

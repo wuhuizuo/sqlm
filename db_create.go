@@ -15,8 +15,8 @@ type DatabaseCreator interface {
 
 type mysqlCreateImp struct{}
 
-func (mi *mysqlCreateImp) Create(dsn string) error {
-	db, err := sqlx.Open("mysql", getMysqlDSNForCreate(dsn))
+func (*mysqlCreateImp) Create(dsn string) error {
+	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("host connect failed: %w", err)
 	}
@@ -33,7 +33,7 @@ func (mi *mysqlCreateImp) Create(dsn string) error {
 
 type sqlite3CreateImp struct{}
 
-func (si *sqlite3CreateImp) Create(dsn string) error {
+func (*sqlite3CreateImp) Create(dsn string) error {
 	if !strings.HasPrefix(dsn, "file:") {
 		return nil
 	}

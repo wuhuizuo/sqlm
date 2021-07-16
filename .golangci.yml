@@ -1,107 +1,180 @@
 linters-settings:
-    dupl:
-        threshold: 100
-        errcheck:
-            check-type-assertions: true
-    funlen:
-        lines: 80
-        statements: 60
-    goconst:
-        min-len: 2
-        min-occurrences: 2
-    gocritic:
-        enabled-tags:
-            - diagnostic
-            - experimental
-            - opinionated
-            - performance
-            - style
-        disabled-checks:
-            - dupImport # https://github.com/go-critic/go-critic/issues/845
-            - ifElseChain
-            - octalLiteral
-            - whyNoLint
-            - wrapperFunc
-    gocyclo:
-        min-complexity: 20
-    goimports:
-        local-prefixes: github.com/wuhuizuo/sqlm
-    revive:
-        ignore-generated-header: true
-        severity: warning
-    gomnd:
-        settings:
-            mnd:
-                checks:
-                    - argument
-                    - case
-                    - condition
-                    - return
-    govet:
-        check-shadowing: true
-        settings:
-            printf:
-                funcs:
-    lll:
-        line-length: 120
-    maligned:
-        suggest-new: true
-    misspell:
-        locale: US
+  dupl:
+    threshold: 100
+    errcheck:
+      check-type-assertions: true
+  funlen:
+    lines: 80
+    statements: 60
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport # https://github.com/go-critic/go-critic/issues/845
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+  gocyclo:
+    min-complexity: 20
+  goimports:
+    local-prefixes: github.com/wuhuizuo/sqlm
+  revive:
+    severity: warning
+    confidence: 0
+    error-code: 2
+    warning-code: 1
+    ignore-generated-header: true
+    rules: # see: https://github.com/mgechev/revive#available-rules
+      - name: argument-limit
+        arguments: [5]
+      - name: atomic
+      - name: bare-return
+      - name: blank-imports
+      - name: bool-literal-in-expr
+      - name: call-to-gc
+      - name: confusing-naming
+      - name: confusing-results
+      - name: constant-logical-expr
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: deep-exit
+      - name: defer
+        arguments: [["call-chain", "loop"]]
+      - name: dot-imports
+      - name: duplicated-imports
+      - name: early-return
+      - name: empty-block
+      - name: empty-lines
+      - name: error-naming
+      - name: error-return
+      - name: error-strings
+      - name: errorf
+      # - name: flag-parameter
+      - name: function-result-limit
+        arguments: [3]
+      - name: get-return
+      - name: identical-branches
+      - name: if-return
+      - name: import-shadowing
+      - name: imports-blacklist
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: modifies-parameter
+      - name: modifies-value-receiver
+      - name: package-comments
+      - name: range
+      - name: range-val-address
+      - name: range-val-in-closure
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: string-of-int
+      - name: struct-tag
+      - name: superfluous-else
+      - name: time-naming
+      - name: unconditional-recursion
+      - name: unexported-naming
+      - name: unexported-return
+      - name: unhandled-error
+        arguments: ["fmt.Printf", "fmt.Fprint"]
+      - name: unnecessary-stmt
+      - name: unreachable-code
+      - name: unused-parameter
+      - name: unused-receiver
+      - name: var-declaration
+      - name: var-naming
+      - name: waitgroup-by-value
+      # BROKEN RULES ARE COMMENTED
+      # - name: cognitive-complexity
+      #   arguments: [ 7 ]
+      # - name: line-length-limit
+      #   arguments: [ 110 ]
+      # - name: cyclomatic
+      #   arguments: [ 10 ]
+      # - name: max-public-structs
+      #   arguments: [ 3 ]
+
+  gomnd:
+    settings:
+      mnd:
+        # don't include the "operation" and "assign"
+        checks:
+          - argument
+          - case
+          - condition
+          - return
+  govet:
+    check-shadowing: true
+    settings:
+      printf:
+        funcs:
+  lll:
+    line-length: 120
+  maligned:
+    suggest-new: true
+  misspell:
+    locale: US
 
 linters:
-    # please, do not use `enable-all`: it's deprecated and will be removed soon.
-    # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-    disable-all: true
-    enable:
-        - bodyclose
-        - deadcode
-        - depguard
-        - dogsled
-        - dupl
-        - errcheck
-        - funlen
-        - gochecknoinits
-        - goconst
-        - gocritic
-        - gocyclo
-        - gofmt
-        - goimports
-        - revive
-        - gomnd
-        - goprintffuncname
-        - gosimple
-        - govet
-        - ineffassign
-        - lll
-        - misspell
-        - nakedret
-        - rowserrcheck
-        - exportloopref
-        - staticcheck
-        - structcheck
-        - stylecheck
-        - typecheck
-        - unconvert
-        - unparam
-        - unused
-        - varcheck
-        - whitespace
-
-    # don't enable:
-    # - gochecknoglobals
-    # - gocognit
-    # - godox
-    # - maligned
-    # - prealloc
-    # - gosec
+  # please, do not use `enable-all`: it's deprecated and will be removed soon.
+  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - exportloopref
+    - funlen
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gomnd
+    - goprintffuncname
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - revive
+    - rowserrcheck
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
+  # don't enable:
+  # - typecheck
+  # - gochecknoglobals
+  # - gocognit
+  # - godox
+  # - maligned
+  # - prealloc
+  # - gosec
 
 issues:
-    # Excluding configuration per-path, per-linter, per-text and per-source
-    exclude-rules:
-        - path: _test\.go
-          linters:
-              - gomnd
-              - dupl
-              - exportloopref
-              - funlen
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - dupl
+        - exportloopref
+        - funlen
+        - revive
