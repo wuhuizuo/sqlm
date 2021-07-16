@@ -10,7 +10,7 @@ import (
 
 func Test_loadDataForUpdate(t *testing.T) {
 	type args struct {
-		t    TableFuncInterface
+		t    *Table
 		src  map[string]interface{}
 		dest interface{}
 	}
@@ -23,7 +23,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 		{
 			"RecordTest",
 			args{
-				&testTable{},
+				&Table{rowModeler: func() interface{} { return &testRecord{} }},
 				map[string]interface{}{
 					"id":           nil,
 					"ruleId":       nil,

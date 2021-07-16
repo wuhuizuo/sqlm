@@ -463,7 +463,7 @@ func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (QueryInfo, m
 }
 
 // UniqWhereFormatter uniq record select filter
-func UniqWhereFormatter(t TableFuncInterface) string {
+func UniqWhereFormatter(t *Table) string {
 	var whereFormater []string
 	for _, k := range t.Schema().PrimaryCols() {
 		whereFormater = append(whereFormater, fmt.Sprintf("%s=:%s", k, k))
