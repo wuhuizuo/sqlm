@@ -33,6 +33,7 @@ func (*mysqlCreateImp) Create(dsn string) error {
 
 type sqlite3CreateImp struct{}
 
+// nolint: gomnd
 func (*sqlite3CreateImp) Create(dsn string) error {
 	if !strings.HasPrefix(dsn, "file:") {
 		return nil
@@ -57,10 +58,10 @@ func fileCreateIfNotExist(file string) error {
 	return err
 }
 
+// nolint: gomnd
 func getDBFromMysqlDSN(dsn string) string {
 	parts := strings.Split(dsn, "/")
 
-	// nolint: gomnd
 	if len(parts) < 2 {
 		return ""
 	}
