@@ -2,6 +2,7 @@
 package sqlm
 
 import (
+	"reflect"
 	"sort"
 	"sync"
 
@@ -56,4 +57,33 @@ func DBCreateDrivers() []string {
 	sort.Strings(list)
 
 	return list
+}
+
+// DBCreateIterStructField 遍历配置模型的各个配置属性创建数据表
+func DBCreateIterStructField(val reflect.Value, optionSetter dbOptionSetter) error {
+	var dbCons []*sqlx.DB
+
+	for i := 0; i < val.NumField(); i++ {
+		vf := val.Field(i)
+		if vf.IsNil() || vf.MethodByName("Create").IsZero() {
+			continue
+		}
+
+		dbCon, err := tableCreate(vf)
+		if err != nil {
+			return err
+		}
+
+		dbCons = append(dbCons, dbCon)
+	}
+
+	if optionSetter == nil {
+		return nil
+	}
+
+	for _, c := range dbCons {
+		optionSetter(c)
+	}
+
+	return nil
 }

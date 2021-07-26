@@ -2,8 +2,6 @@ package sqlm
 
 import (
 	"time"
-
-	"github.com/jmoiron/sqlx"
 )
 
 // testRecord record for unit testing
@@ -22,7 +20,7 @@ import (
 // | body         | varchar(1024) | NO   |     | NULL              |                |告警内容     |
 // +--------------+---------------+------+-----+-------------------+----------------+------------+
 type testRecord struct {
-	ID           int32      `json:"id,omitempty"           db:"id,type=INT,auto_increment,key"`
+	ID           int32      `json:"id,omitempty"           db:"id,type=INT,auto_increment,primary,key"`
 	ProjectID    int32      `json:"projectId"              db:"projectId,type=INT,not_null,split"`
 	RuleID       int32      `json:"ruleId,omitempty"       db:"ruleId,type=INT,not_null,primary"`
 	CreateTime   time.Time  `json:"createtime,omitempty"   db:"createtime,type=DATETIME,default=CURRENT_TIMESTAMP,primary"`
@@ -32,67 +30,4 @@ type testRecord struct {
 	EnsureTime   time.Time  `json:"ensureTime,omitempty"   db:"ensureTime,type=DATETIME,not_insert"`
 	Title        string     `json:"title,omitempty"        db:"title,type=VARCHAR(128),not_null"`
 	Body         string     `json:"body,omitempty"         db:"body,type=VARCHAR(1024),not_null"`
-}
-
-// testTable for unit testing
-type testTable Table
-
-// RowModel model for store
-func (t *testTable) RowModel() interface{} {
-	return &testRecord{}
-}
-
-// Schema of table
-func (t *testTable) Schema() *TableSchema {
-	return Schema(t, (*Table)(t))
-}
-
-// Create of table
-func (t *testTable) Create() error {
-	return Create(t)
-}
-
-// IsDup record in Table?
-func (t *testTable) IsDup(record interface{}) (interface{}, error) {
-	return IsDup(t, record)
-}
-
-// Insert record to Table
-func (t *testTable) Insert(record interface{}) (int64, error) {
-	return Insert(t, record)
-}
-
-// Inserts records to Table
-func (t *testTable) Inserts(records []interface{}) ([]int64, error) {
-	return Inserts(t, records)
-}
-
-// Delete records from Table
-func (t *testTable) Delete(filter RowFilter) error {
-	return Delete(t, filter)
-}
-
-// Save record
-func (t *testTable) Save(record interface{}) error {
-	return Save(t, record)
-}
-
-// Update records in Table
-func (t *testTable) Update(filter RowFilter, updateParts map[string]interface{}) error {
-	return Update(t, filter, updateParts)
-}
-
-// List records from Table
-func (t *testTable) List(filter RowFilter, options ListOptions) ([]interface{}, error) {
-	return List(t, filter, options)
-}
-
-// Get record by Key
-func (t *testTable) Get(filter RowFilter, record interface{}) error {
-	return GetFirst(t, filter, record)
-}
-
-// ScanRow scan struct from table row
-func (t *testTable) ScanRow(rows *sqlx.Rows) (interface{}, error) {
-	return ScanRow(t, rows)
 }

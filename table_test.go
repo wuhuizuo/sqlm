@@ -1,6 +1,7 @@
 package sqlm
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 
 func Test_loadDataForUpdate(t *testing.T) {
 	type args struct {
-		t    TableFuncInterface
+		t    *Table
 		src  map[string]interface{}
 		dest interface{}
 	}
@@ -23,7 +24,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 		{
 			"RecordTest",
 			args{
-				&testTable{},
+				&Table{rowModeler: func() interface{} { return &testRecord{} }},
 				map[string]interface{}{
 					"id":           nil,
 					"ruleId":       nil,
@@ -72,7 +73,7 @@ func Test_loadDataForUpdate(t *testing.T) {
 
 func TestScanRow(t *testing.T) {
 	type args struct {
-		t    TableFuncInterface
+		t    *Table
 		rows *sqlx.Rows
 	}
 
@@ -82,18 +83,86 @@ func TestScanRow(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-		{"nil rows", args{&testTable{}, nil}, nil, true},
+		{
+			name: "nil rows",
+			args: args{
+				t:    &Table{rowModeler: func() interface{} { return &testRecord{} }},
+				rows: nil,
+			},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ScanRow(tt.args.t, tt.args.rows)
+			got, err := tt.args.t.ScanRow(tt.args.rows)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ScanRow() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ScanRow() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTable_Create(t *testing.T) {
+	fakeServer, err := newFakeMysqlServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = fakeServer.Start() }()
+	defer fakeServer.Close()
+
+	tests := []struct {
+		name    string
+		table   *Table
+		wantErr bool
+	}{
+		{
+			name: "valid dsn with not existed database",
+			table: &Table{
+				Database: &Database{
+					Driver: "mysql",
+					DSN:    fmt.Sprintf("user:pass@tcp(%s)/fake", fakeServer.Listener.Addr()),
+				},
+				TableName: "test_table",
+			},
+			wantErr: false,
+		},
+		{
+			name: "database create failed",
+			table: &Table{
+				Database: &Database{
+					Driver: "mysql",
+					DSN:    fmt.Sprintf("user:pass@tcp(%s)/$$$@xxx", fakeServer.Listener.Addr()),
+				},
+				TableName: "test_table",
+			},
+			wantErr: true,
+		},
+		{
+			name: "table create failed",
+			table: &Table{
+				Database: &Database{
+					Driver: "mysql",
+					DSN:    fmt.Sprintf("user:pass@tcp(%s)/fake", fakeServer.Listener.Addr()),
+				},
+				TableName: "test_table$$$",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.table.SetRowModel(func() interface{} { return &testRecord{} })
+
+			if err := tt.table.Create(); (err != nil) != tt.wantErr {
+				t.Errorf("Table.Create() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

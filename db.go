@@ -18,47 +18,37 @@ type Database struct {
 }
 
 // Con new/reuse db connection
-func (p *Database) Con(create ...bool) (*sqlx.DB, error) {
+func (p *Database) Con() (*sqlx.DB, error) {
 	if p.dbCon != nil {
 		return p.dbCon, nil
 	}
 
-	err := p.Init(len(create) > 0 && create[0])
+	// read con from cache.
+	conKey := fmt.Sprintf("%s://%s", p.Driver, p.DSN)
+	if db, ok := dbConCache[conKey]; ok && db != nil {
+		p.dbCon = db
+		return db, nil
+	}
+
+	db, err := p.newCon()
+	if err == nil {
+		dbConCache[conKey] = db
+		p.dbCon = db
+	}
+
+	return db, err
+}
+
+func (p *Database) newCon() (*sqlx.DB, error) {
+	db, err := sqlx.Open(p.Driver, p.DSN)
 	if err != nil {
+		return nil, fmt.Errorf("db connect failed: %w", err)
+	}
+	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 
-	return p.dbCon, nil
-}
-
-// Init db connection
-func (p *Database) Init(create bool) error {
-	// read con from cache
-	conKey := fmt.Sprintf("%s://%s", p.Driver, p.DSN)
-	if v, ok := dbConCache[conKey]; ok && v != nil {
-		p.dbCon = v
-		return nil
-	}
-
-	// 创建
-	if create {
-		if err := p.Create(); err != nil {
-			return err
-		}
-	}
-
-	db, err := sqlx.Open(p.Driver, p.DSN)
-	if err != nil {
-		return fmt.Errorf("db connect failed: %w", err)
-	}
-	if err := db.Ping(); err != nil {
-		return err
-	}
-
-	dbConCache[conKey] = db
-	p.dbCon = db
-
-	return nil
+	return db, nil
 }
 
 // Close db connection

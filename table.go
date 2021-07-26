@@ -2,12 +2,10 @@ package sqlm
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
-	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -26,113 +24,6 @@ const (
 	SQLKeyFrom   = "FROM"
 )
 
-// Table Sql Table
-type Table struct {
-	*Database    `json:"database"`
-	TableName    string `json:"tableName"`
-	TableHooks   `json:"-"`
-	*TableSchema `json:"-"`
-}
-
-// InsertHookFunc hook for table insert record operation
-type InsertHookFunc func(t TableFuncInterface, record interface{}) error
-
-// InsertsHookFunc hook for table inserts records operation
-type InsertsHookFunc func(t TableFuncInterface, records []interface{}) error
-
-// SaveHookFunc hook for table single record update operation
-type SaveHookFunc func(t TableFuncInterface, record interface{}) error
-
-// UpdateHookFunc hook for table records update operation
-type UpdateHookFunc func(t TableFuncInterface, rf RowFilter, parts map[string]interface{}) error
-
-// DeleteHookFunc hook for table delete records operation
-type DeleteHookFunc func(t TableFuncInterface, rf RowFilter) error
-
-// TableOperateHook hook for single kind operation
-type TableOperateHook struct {
-	Before []interface{}
-	After  []interface{}
-}
-
-// TableHooks for all operation before and after for the table
-type TableHooks struct {
-	Insert  TableOperateHook
-	Inserts TableOperateHook
-	Save    TableOperateHook
-	Update  TableOperateHook
-	Delete  TableOperateHook
-}
-
-// Hooks return self
-func (h *TableHooks) Hooks() *TableHooks {
-	return h
-}
-
-// AppendHooks with other hooks
-func (h *TableHooks) AppendHooks(newHooks *TableHooks) {
-	if newHooks == nil {
-		return
-	}
-
-	if len(newHooks.Insert.Before) > 0 {
-		h.Insert.Before = append(h.Insert.Before, newHooks.Insert.Before...)
-	}
-	if len(newHooks.Insert.After) > 0 {
-		h.Insert.After = append(h.Insert.After, newHooks.Insert.After...)
-	}
-	if len(newHooks.Inserts.Before) > 0 {
-		h.Inserts.Before = append(h.Inserts.Before, newHooks.Inserts.Before...)
-	}
-	if len(newHooks.Insert.After) > 0 {
-		h.Inserts.After = append(h.Inserts.After, newHooks.Inserts.After...)
-	}
-	if len(newHooks.Update.Before) > 0 {
-		h.Update.Before = append(h.Update.Before, newHooks.Update.Before...)
-	}
-	if len(newHooks.Insert.After) > 0 {
-		h.Update.After = append(h.Update.After, newHooks.Update.After...)
-	}
-	if len(newHooks.Save.Before) > 0 {
-		h.Save.Before = append(h.Save.Before, newHooks.Save.Before...)
-	}
-	if len(newHooks.Insert.After) > 0 {
-		h.Save.After = append(h.Save.After, newHooks.Save.After...)
-	}
-	if len(newHooks.Delete.Before) > 0 {
-		h.Delete.Before = append(h.Delete.Before, newHooks.Delete.Before...)
-	}
-	if len(newHooks.Insert.After) > 0 {
-		h.Delete.After = append(h.Delete.After, newHooks.Delete.After...)
-	}
-}
-
-// TableHookInterface for hook methods interface
-type TableHookInterface interface {
-	Hooks() *TableHooks
-	AppendHooks(*TableHooks)
-}
-
-// TableFuncInterface basic functions interface
-type TableFuncInterface interface {
-	TableHookInterface
-
-	Con(...bool) (*sqlx.DB, error)
-	// RowModel should return a struct point
-	RowModel() interface{}
-	Schema() *TableSchema
-	Create() error
-	Get(filter RowFilter, record interface{}) error
-	List(filter RowFilter, options ListOptions) ([]interface{}, error)
-	Insert(row interface{}) (int64, error)
-	Inserts(rows []interface{}) ([]int64, error)
-	Delete(filter RowFilter) error
-	Save(interface{}) error
-	Update(filter RowFilter, updateParts map[string]interface{}) error
-	IsDup(row interface{}) (interface{}, error)
-	ScanRow(rows *sqlx.Rows) (interface{}, error)
-}
-
 // JoinReplacer 联合查询表明替换信息
 type JoinReplacer struct {
 	Join                   bool
@@ -140,7 +31,7 @@ type JoinReplacer struct {
 	TempTablePlaceholder   string
 }
 
-// ListOptions for TableFuncInterface.List()
+// ListOptions for Table#List()
 type ListOptions struct {
 	Columns       []string
 	OrderByColumn string
@@ -150,53 +41,75 @@ type ListOptions struct {
 	Limit         int32
 }
 
-type tableExistExec func(t TableFuncInterface) error
+// Table Sql Table
+type Table struct {
+	*Database  `json:"database"`
+	TableName  string `json:"tableName"`
+	TableHooks `json:"-"`
+	schema     *TableSchema
+	rowModeler func() interface{}
+
+	once sync.Once
+}
+
+// RowModel get model for store
+func (t *Table) RowModel() interface{} {
+	if t.rowModeler == nil {
+		return nil
+	}
+
+	return t.rowModeler()
+}
+
+// SetRowModel set model for store
+func (t *Table) SetRowModel(modeler func() interface{}) {
+	t.rowModeler = modeler
+}
 
 // Schema of table
-func Schema(t TableFuncInterface, table *Table) *TableSchema {
-	if table.TableSchema == nil {
-		var driver string
-		if db := table.Database; db != nil {
-			driver = db.Driver
-		}
-		table.TableSchema = NewTableSchema(reflect.TypeOf(t.RowModel()))
-		table.TableSchema.Driver = driver
-		table.TableSchema.Name = table.TableName
-	}
-	return table.TableSchema
+func (t *Table) Schema() *TableSchema {
+	t.once.Do(t.initSchema)
+
+	return t.schema
 }
 
 // Create table if not exists
-func Create(t TableFuncInterface) error {
-	createSQL := t.Schema().CreateSQL()
+func (t *Table) Create() error {
+	if err := t.Database.Create(); err != nil {
+		return err
+	}
+
 	con, err := t.Con()
 	if err != nil {
 		return err
 	}
+
+	createSQL := t.Schema().CreateSQL()
 	_, err = con.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("%w\n sql: %s", err, createSQL)
 	}
+
 	return nil
 }
 
 // Insert records to Table
 // 	if has dup keys record, then update it
-func Insert(t TableFuncInterface, record interface{}) (int64, error) {
-	// call before hooks
-	for _, hook := range t.Hooks().Insert.Before {
+func (t *Table) Insert(record interface{}) (int64, error) {
+	// call before hooks.
+	for _, hook := range t.TableHooks.Insert.Before {
 		if err := hook.(InsertHookFunc)(t, record); err != nil {
 			return 0, err
 		}
 	}
 
-	insertID, err := insert(t, record)
+	insertID, err := t.insert(record)
 	if err != nil {
 		return insertID, err
 	}
 
-	// call after hooks
-	for _, hook := range t.Hooks().Insert.After {
+	// call after hooks.
+	for _, hook := range t.TableHooks.Insert.After {
 		if hookErr := hook.(InsertHookFunc)(t, record); hookErr != nil {
 			return insertID, hookErr
 		}
@@ -205,143 +118,8 @@ func Insert(t TableFuncInterface, record interface{}) (int64, error) {
 	return insertID, err
 }
 
-// insert records to Table
-// 	if has dup keys record, then update it
-func insert(t TableFuncInterface, record interface{}) (int64, error) {
-	// 针对无重复记录的情况下的插入
-	var insertPatterns []string
-	insertKeys := t.Schema().InsertCols()
-	for _, k := range insertKeys {
-		insertPatterns = append(insertPatterns, ":"+k)
-	}
-	insertKeysStr := strings.Join(insertKeys, ",")
-	insertValPatternStr := strings.Join(insertPatterns, ",")
-
-	// 语句组装
-	var query string
-	queryTpl := "INSERT INTO %s (%s) VALUES (%s)"
-	targetTable, err := t.Schema().TargetName(record)
-	if err != nil {
-		return 0, err
-	}
-	query = fmt.Sprintf(queryTpl, targetTable, insertKeysStr, insertValPatternStr)
-	query += insertConflictUpdatePattern(t)
-
-	// 语句执行
-	ret, err := execWithAutoCreate(t, targetTable, query, record)
-	if err == nil && ret != nil {
-		insertID, _ := ret.LastInsertId()
-		return insertID, nil
-	}
-
-	return 0, err
-}
-
-func whenTableExist(t TableFuncInterface, exec tableExistExec) error {
-	tableNotExistErrMsgReg := regexp.MustCompile(TableNotExistErrorRegex)
-	err := exec(t)
-
-	if err != nil && !tableNotExistErrMsgReg.MatchString(err.Error()) {
-		return err
-	}
-
-	return nil
-}
-
-func withAutoCreate(t TableFuncInterface, targetTable string, exec tableExistExec) error {
-	tableNotExistErrMsgReg := regexp.MustCompile(TableNotExistErrorRegex)
-	err := exec(t)
-
-	if err == nil || !tableNotExistErrMsgReg.MatchString(err.Error()) {
-		return err
-	}
-
-	// 如果错误类型是数据表不存在,则自动创建并重调
-	schema := *t.Schema()
-	schema.Name = targetTable
-	createSQL := schema.CreateSQL()
-	con, err := t.Con()
-	if err != nil {
-		return err
-	}
-	_, err = con.Exec(createSQL)
-	if err != nil {
-		errTpl := "try to auto create table (%s) failed:\nsql: %s\nerror: %v"
-		return fmt.Errorf(errTpl, targetTable, createSQL, err)
-	}
-
-	// 表创建成功后重新执行
-	err = exec(t)
-	if err != nil && !tableNotExistErrMsgReg.MatchString(err.Error()) {
-		return fmt.Errorf("error also happened after table auto created: %w", err)
-	}
-	return err
-}
-
-func execWhenExist(t TableFuncInterface, query string, arg interface{}) (ret sql.Result, err error) {
-	exec := func(et TableFuncInterface) error {
-		con, conErr := et.Con()
-		if conErr == nil {
-			ret, conErr = con.NamedExec(query, arg)
-		}
-
-		return conErr
-	}
-
-	err = whenTableExist(t, exec)
-	return ret, err
-}
-
-func execWithAutoCreate(t TableFuncInterface, table, query string, arg interface{}) (ret sql.Result, err error) {
-	exec := func(et TableFuncInterface) error {
-		con, errCon := et.Con()
-		if errCon == nil {
-			ret, errCon = con.NamedExec(query, arg)
-		}
-
-		return errCon
-	}
-
-	err = withAutoCreate(t, table, exec)
-	return ret, err
-}
-
-func queryWhenExist(t TableFuncInterface, query string, arg interface{}) (rows *sqlx.Rows, err error) {
-	exec := func(et TableFuncInterface) error {
-		con, errCon := et.Con()
-		if errCon == nil {
-			rows, errCon = con.NamedQuery(query, arg)
-		}
-
-		return errCon
-	}
-
-	err = whenTableExist(t, exec)
-	return rows, err
-}
-
-func insertConflictUpdatePattern(t TableFuncInterface) string {
-	schema := t.Schema()
-	dupUpdatePattern := schema.UpdatePatternsWhenDup()
-	var conflictUpdateTpl string
-	if len(dupUpdatePattern) > 0 {
-		switch schema.Driver {
-		case DriverMysql:
-			conflictUpdateTpl = " ON DUPLICATE KEY UPDATE %s"
-			return fmt.Sprintf(conflictUpdateTpl, dupUpdatePattern)
-		case DriverSQLite, DriverSQLite3:
-			conflictUpdateTpl = " ON CONFLICT(%s) DO UPDATE SET %s"
-			return fmt.Sprintf(conflictUpdateTpl, strings.Join(schema.PrimaryCols(), ","), dupUpdatePattern)
-		default:
-			return conflictUpdateTpl
-		}
-	}
-
-	return conflictUpdateTpl
-}
-
 // IsDup record in table
-func IsDup(t TableFuncInterface, row interface{}) (interface{}, error) {
+func (t *Table) IsDup(row interface{}) (interface{}, error) {
 	whereFormatter := UniqWhereFormatter(t)
 	targetTable, err := t.Schema().TargetName(row)
 	if err != nil {
@@ -387,21 +165,21 @@ func IsDup(t TableFuncInterface, row interface{}) (interface{}, error) {
 }
 
 // Inserts records to Table
-func Inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
+func (t *Table) Inserts(records []interface{}) ([]int64, error) {
 	// call before hooks
-	for _, hook := range t.Hooks().Inserts.Before {
+	for _, hook := range t.TableHooks.Inserts.Before {
 		if err := hook.(InsertsHookFunc)(t, records); err != nil {
 			return nil, err
 		}
 	}
 
-	ret, err := inserts(t, records)
+	ret, err := t.inserts(records)
 	if err != nil {
 		return ret, err
 	}
 
 	// call after hooks
-	for _, hook := range t.Hooks().Inserts.After {
+	for _, hook := range t.TableHooks.Inserts.After {
 		if hookErr := hook.(InsertsHookFunc)(t, records); hookErr != nil {
 			return ret, hookErr
 		}
@@ -410,36 +188,22 @@ func Inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
 	return ret, err
 }
 
-func inserts(t TableFuncInterface, records []interface{}) ([]int64, error) {
-	var ret []int64
-
-	for _, r := range records {
-		id, err := insert(t, r)
-		if err != nil {
-			return ret, err
-		}
-		ret = append(ret, id)
-	}
-
-	return ret, nil
-}
-
 // Save the exist record
-func Save(t TableFuncInterface, record interface{}) error {
+func (t *Table) Save(record interface{}) error {
 	// call before hooks
-	for _, hook := range t.Hooks().Save.Before {
+	for _, hook := range t.TableHooks.Save.Before {
 		if err := hook.(SaveHookFunc)(t, record); err != nil {
 			return err
 		}
 	}
 
-	err := save(t, record)
+	err := t.save(record)
 	if err != nil {
 		return err
 	}
 
 	// call after hooks
-	for _, hook := range t.Hooks().Save.After {
+	for _, hook := range t.TableHooks.Save.After {
 		if hookErr := hook.(SaveHookFunc)(t, record); hookErr != nil {
 			return hookErr
 		}
@@ -448,168 +212,32 @@ func Save(t TableFuncInterface, record interface{}) error {
 	return nil
 }
 
-func save(t TableFuncInterface, record interface{}) error {
-	// 更新部分组装
-	updateFields := t.Schema().UpdateColsWhenDup()
-	var updatePatterns []string
-	for _, k := range updateFields {
-		updatePatterns = append(updatePatterns, k+"=:"+k)
-	}
-
-	// 过滤条件组装
-	var wherePatterns []string
-	var pCols []string
-	idKey := t.Schema().KeyCol()
-	if idKey != "" {
-		pCols = append(pCols, idKey)
-	} else {
-		pCols = t.Schema().PrimaryCols()
-	}
-	if len(pCols) == 0 {
-		return &ErrorSQLInvalid{Message: "table schema should has one key col or primary col setted"}
-	}
-	for _, k := range pCols {
-		wherePatterns = append(wherePatterns, k+"=:"+k)
-	}
-
-	// 整体语句组合
-	targetTable, err := t.Schema().TargetName(record)
-	if err != nil {
-		return err
-	}
-	sets := strings.Join(updatePatterns, ",")
-	whereConditionStr := strings.Join(wherePatterns, " AND ")
-	query := fmt.Sprintf("%s %s %s %s %s %s", SQLKeyUpdate, targetTable, SQLKeySet, sets, SQLKeyWhere, whereConditionStr)
-
-	con, err := t.Con()
-	if err != nil {
-		return err
-	}
-
-	// 执行
-	_, execErr := con.NamedExec(query, record)
-	return execErr
-}
-
-// update records in Table
-func update(t TableFuncInterface, filter RowFilter, updateData interface{}, updateFields []string) (int64, error) {
-	var rowsAffect int64
-
-	// 计算过滤条件
-	whereFormatter, err := composeWhereConditionStrForUpdate(filter)
-	if err != nil {
-		return rowsAffect, err
-	}
-
-	// 计算更新内容
-	var updatePatterns []string
-	for _, k := range updateFields {
-		updatePatterns = append(updatePatterns, k+"=:"+k)
-	}
-
-	// 组合sql语句
-	targetTable, err := t.Schema().TargetName(filter)
-	if err != nil {
-		return 0, err
-	}
-	query := fmt.Sprintf("%s %s %s %s", SQLKeyUpdate, targetTable, SQLKeySet, strings.Join(updatePatterns, ","))
-	if whereFormatter != "" {
-		query += " where " + whereFormatter
-	}
-
-	// 执行
-	ret, execErr := execWhenExist(t, query, updateData)
-	if ret != nil {
-		rowsAffect, _ = ret.RowsAffected()
-	}
-	return rowsAffect, execErr
-}
-
-func composeWhereConditionStrForUpdate(filter RowFilter) (string, error) {
-	var ret string
-	where, err := filter.WherePattern()
-	if err != nil {
-		return ret, &ErrorSQLInvalid{"where条件组装失败", err}
-	}
-	if where == nil {
-		return ret, nil
-	}
-	if where.Join != nil {
-		return ret, &ErrorSQLInvalid{Message: "update中的不允许where中存在联合条件"}
-	}
-
-	ret = where.Format
-	for k, v := range where.Patterns {
-		re := regexp.MustCompile(":" + k + `\b`)
-		ret = re.ReplaceAllString(ret, formatCondition(v))
-	}
-
-	return ret, nil
-}
-
-func formatCondition(v interface{}) string {
-	switch v := v.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-		return fmt.Sprintf("%v", v)
-	case bool:
-		if v {
-			return "1"
-		}
-		return "0"
-	default:
-		return fmt.Sprintf("'%v'", v)
-	}
-}
-
-func loadDataForUpdate(t TableFuncInterface, src map[string]interface{}, dest interface{}) ([]string, error) {
-	var updateFields []string
-
-	if dest == nil {
-		for k := range src {
-			updateFields = append(updateFields, k)
-		}
-		return updateFields, nil
-	}
-
-	bs, _ := json.Marshal(&src)
-	if err := json.Unmarshal(bs, dest); err != nil {
-		return updateFields, err
-	}
-
-	for _, c := range t.Schema().Columns {
-		if _, ok := src[c.JSONName]; ok {
-			updateFields = append(updateFields, c.Name)
-		}
-	}
-	return updateFields, nil
-}
-
 // Update records in Table
-func Update(t TableFuncInterface, filter RowFilter, updateParts map[string]interface{}) error {
+func (t *Table) Update(filter RowFilter, updateParts map[string]interface{}) error {
 	if len(updateParts) == 0 {
 		return nil
 	}
 
 	// call before hooks
-	for _, hook := range t.Hooks().Update.Before {
+	for _, hook := range t.TableHooks.Update.Before {
 		if err := hook.(UpdateHookFunc)(t, filter, updateParts); err != nil {
 			return err
 		}
 	}
 
-	updateModel := t.RowModel()
-	updateFields, err := loadDataForUpdate(t, updateParts, updateModel)
+	updatePayload := t.RowModel()
+	updateFields, err := loadDataForUpdate(t, updateParts, updatePayload)
 	if err != nil {
 		return &ErrorSQLInvalid{"invalid update parts", err}
 	}
-	_, err = update(t, filter, updateModel, updateFields)
 
+	_, err = t.update(filter, updatePayload, updateFields)
 	if err != nil {
 		return err
 	}
 
 	// call after hooks
-	for _, hook := range t.Hooks().Update.After {
+	for _, hook := range t.TableHooks.Update.After {
 		if hookErr := hook.(UpdateHookFunc)(t, filter, updateParts); hookErr != nil {
 			return hookErr
 		}
@@ -619,24 +247,20 @@ func Update(t TableFuncInterface, filter RowFilter, updateParts map[string]inter
 }
 
 // Delete records in Table
-func Delete(t TableFuncInterface, filter RowFilter) error {
-	if filter == nil {
-		return errors.New("filter should not be nil")
-	}
-
+func (t *Table) Delete(filter RowFilter) error {
 	// call before hooks
-	for _, hook := range t.Hooks().Delete.Before {
+	for _, hook := range t.TableHooks.Delete.Before {
 		if err := hook.(DeleteHookFunc)(t, filter); err != nil {
 			return err
 		}
 	}
 
-	if _, err := deleteRows(t, filter); err != nil {
+	if _, err := t.deleteRows(filter); err != nil {
 		return err
 	}
 
 	// call after hooks
-	for _, hook := range t.Hooks().Delete.After {
+	for _, hook := range t.TableHooks.Delete.After {
 		if err := hook.(DeleteHookFunc)(t, filter); err != nil {
 			return err
 		}
@@ -645,36 +269,15 @@ func Delete(t TableFuncInterface, filter RowFilter) error {
 	return nil
 }
 
-func deleteRows(t TableFuncInterface, filter RowFilter) (sql.Result, error) {
-	where, err := filter.WherePattern()
-	if err != nil {
-		return nil, &ErrorSQLInvalid{"where条件组装失败", err}
-	}
-	if where == nil || where.Format == "" {
-		return nil, &ErrorSQLInvalid{Message: "不允许不带where的删除操作"}
-	}
-	if where.Join != nil {
-		return nil, &ErrorSQLInvalid{Message: "delete中的不允许where中存在联合条件"}
-	}
-
-	// 组合sql语句并执行
-	targetTable, err := t.Schema().TargetName(filter)
-	if err != nil {
-		return nil, err
-	}
-	query := fmt.Sprintf("%s %s %s %s %s", SQLKeyDelete, SQLKeyFrom, targetTable, SQLKeyWhere, where.Format)
-	return execWhenExist(t, query, where.Patterns)
-}
-
 // List Records from Table
-func List(t TableFuncInterface, filter RowFilter, options ListOptions) ([]interface{}, error) {
-	var records []interface{}
+func (t *Table) List(filter RowFilter, options ListOptions) ([]interface{}, error) {
+	records := make([]interface{}, 0)
 	query, wherePatterns, err := t.Schema().SelectSQL(filter, options)
 	if err != nil {
 		return records, err
 	}
 
-	rows, queryErr := queryWhenExist(t, query.String(), wherePatterns)
+	rows, queryErr := t.queryWhenExist(query.String(), wherePatterns)
 	if queryErr != nil {
 		return records, fmt.Errorf("query failed :%w\nsql: %s\nwherePatterns: %v", queryErr, &query, wherePatterns)
 	}
@@ -701,13 +304,13 @@ func List(t TableFuncInterface, filter RowFilter, options ListOptions) ([]interf
 }
 
 // GetFirst Record from Table by filter
-func GetFirst(t TableFuncInterface, filter RowFilter, record interface{}) error {
+func (t *Table) Get(filter RowFilter, record interface{}) error {
 	query, wherePatterns, err := t.Schema().SelectSQL(filter, ListOptions{AllColumns: true, Limit: 1})
 	if err != nil {
 		return err
 	}
 
-	rows, queryErr := queryWhenExist(t, query.String(), wherePatterns)
+	rows, queryErr := t.queryWhenExist(query.String(), wherePatterns)
 	if queryErr != nil {
 		return fmt.Errorf("query failed :%w\nsql: %s\nwherePatterns: %v", queryErr, &query, wherePatterns)
 	}
@@ -726,12 +329,16 @@ func GetFirst(t TableFuncInterface, filter RowFilter, record interface{}) error 
 }
 
 // ScanRow scan struct from table row
-func ScanRow(t TableFuncInterface, rows *sqlx.Rows) (interface{}, error) {
+func (t *Table) ScanRow(rows *sqlx.Rows) (interface{}, error) {
+	record := t.RowModel()
 	if rows == nil {
-		return nil, errors.New("nil rows")
+		return nil, errors.New("empty rows")
 	}
 
-	record := t.RowModel()
 	err := rows.StructScan(record)
-	return record, err
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
 }

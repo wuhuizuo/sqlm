@@ -15,7 +15,7 @@ type DatabaseCreator interface {
 
 type mysqlCreateImp struct{}
 
-func (mi *mysqlCreateImp) Create(dsn string) error {
+func (*mysqlCreateImp) Create(dsn string) error {
 	db, err := sqlx.Open("mysql", getMysqlDSNForCreate(dsn))
 	if err != nil {
 		return fmt.Errorf("host connect failed: %w", err)
@@ -33,7 +33,8 @@ func (mi *mysqlCreateImp) Create(dsn string) error {
 
 type sqlite3CreateImp struct{}
 
-func (si *sqlite3CreateImp) Create(dsn string) error {
+// nolint: gomnd
+func (*sqlite3CreateImp) Create(dsn string) error {
 	if !strings.HasPrefix(dsn, "file:") {
 		return nil
 	}
@@ -57,10 +58,10 @@ func fileCreateIfNotExist(file string) error {
 	return err
 }
 
+// nolint: gomnd
 func getDBFromMysqlDSN(dsn string) string {
 	parts := strings.Split(dsn, "/")
 
-	// nolint: gomnd
 	if len(parts) < 2 {
 		return ""
 	}
@@ -70,6 +71,7 @@ func getDBFromMysqlDSN(dsn string) string {
 	return strings.SplitN(dbPart, "?", 2)[0]
 }
 
+// nolint: gomnd
 func getMysqlDSNForCreate(dsn string) string {
 	parts := strings.SplitN(dsn, "@", 2)
 	if len(parts) < 2 {

@@ -112,14 +112,12 @@ func Test_mysqlCreateImp_Create(t *testing.T) {
 			args{fmt.Sprintf("user:pass@tcp(%s)/", fakeServer.Listener.Addr())},
 			true,
 		},
-		// The fake mysql server is not supported to create database statement.
-		//	 https://github.com/dolthub/go-mysql-server/issues/250
-		// {
-		// 	"valid dsn with not existed database",
-		// 	new(mysqlCreateImp),
-		// 	args{fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
-		// 	false,
-		// },
+		{
+			"valid dsn with not existed database",
+			new(mysqlCreateImp),
+			args{fmt.Sprintf("user:pass@tcp(%s)/not_exist", fakeServer.Listener.Addr())},
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
