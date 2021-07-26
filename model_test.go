@@ -20,7 +20,7 @@ import (
 // | body         | varchar(1024) | NO   |     | NULL              |                |告警内容     |
 // +--------------+---------------+------+-----+-------------------+----------------+------------+
 type testRecord struct {
-	ID           int32      `json:"id,omitempty"           db:"id,type=INT,auto_increment,key"`
+	ID           int32      `json:"id,omitempty"           db:"id,type=INT,auto_increment,primary,key"`
 	ProjectID    int32      `json:"projectId"              db:"projectId,type=INT,not_null,split"`
 	RuleID       int32      `json:"ruleId,omitempty"       db:"ruleId,type=INT,not_null,primary"`
 	CreateTime   time.Time  `json:"createtime,omitempty"   db:"createtime,type=DATETIME,default=CURRENT_TIMESTAMP,primary"`
