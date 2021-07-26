@@ -75,6 +75,10 @@ func (t *Table) Schema() *TableSchema {
 
 // Create table if not exists
 func (t *Table) Create() error {
+	if err := t.Database.Create(); err != nil {
+		return err
+	}
+
 	con, err := t.Con()
 	if err != nil {
 		return err
