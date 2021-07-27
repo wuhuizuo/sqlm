@@ -416,7 +416,7 @@ func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (Query, map[s
 
 	where, err := rf.WherePattern()
 	if err != nil {
-		return selectStatement, nil, fmt.Errorf("where条件组装失败:%s", err.Error())
+		return selectStatement, nil, fmt.Errorf("where statement composed failed: %w", err)
 	}
 	if where == nil {
 		return selectStatement, nil, nil

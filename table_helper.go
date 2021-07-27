@@ -229,7 +229,7 @@ func doWithAutoCreate(t *Table, targetTable string, do func(t *Table) error) err
 
 	_, err = con.Exec(createSQL)
 	if err != nil {
-		errTpl := "try to auto create table (%s) failed:\nsql: %s\nerror: %v"
+		errTpl := "try to auto create table (%s) failed:\nsql: %s\nerror: %w"
 		return fmt.Errorf(errTpl, targetTable, createSQL, err)
 	}
 
