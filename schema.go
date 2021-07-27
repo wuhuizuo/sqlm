@@ -9,74 +9,63 @@ import (
 	"github.com/jmoiron/sqlx/reflectx"
 )
 
+// SQL divers.
 const (
-	// DBSchemaTag struct field tag for table column schema
-	DBSchemaTag = "db"
-	// DBJsonTag struct field tag for marshal to json
-	DBJsonTag = "json"
-
-	// DBKeyNotNull for col schema key: not_null
-	DBKeyNotNull = "not_null"
-	// DBKeyPrimary for col schema key: primary
-	DBKeyPrimary = "primary"
-	// DBKeyDefault for col schema key: default
-	DBKeyDefault = "default"
-	// DBKeyType for col schema key: type
-	DBKeyType = "type"
-	// DBKeyKey for col schema key: key
-	DBKeyKey = "key"
-	// DBKeyAutoIncrement for col schema key: auto_increment
-	DBKeyAutoIncrement = "auto_increment"
-	// DBKeyNotInsert for col schema key: not_insert
-	DBKeyNotInsert = "not_insert"
-	// DBKeyNotUpdate for col schema key: not_update
-	DBKeyNotUpdate = "not_update"
-	// DBKeyOnUpdate for col schema key: on_update => ON UPDATE
-	DBKeyOnUpdate = "on_update"
-	// DBKeyComplex 标识复杂列,复杂列在输出简要记录信息时并不展示
-	DBKeyComplex = "complex"
-	// DBKeySplit split table by column's value, usually value range is limited.
-	DBKeySplit = "split"
-	// True for col schema val: true
-	True = "true"
-	// False for col schema val: false
-	False = "false"
-	// DateTimeType for db datetime type
-	DateTimeType = "DATETIME"
-	// DBFnCurrentTimestamp == CURRENT_TIMESTAMP
-	DBFnCurrentTimestamp = "CURRENT_TIMESTAMP"
-
-	// AttrOnUpdateMySQL `on update` attribute for mysql table DDL
-	AttrOnUpdateMySQL = "ON UPDATE"
-	// AttrNotNullMySQL `not null` attribute for mysql table DDL
-	AttrNotNullMySQL = "NOT NULL"
-	// AttrNotNullSQLite `not null` attribute for sqlite table DDL
-	AttrNotNullSQLite = "NOT NULL"
-	// AttrDefaultMySQL `default` attribute for mysql table DDL
-	AttrDefaultMySQL = "DEFAULT"
-	// AttrDefaultSQLite `default` attribute for sqlite table DDL
-	AttrDefaultSQLite = "DEFAULT"
-
-	// DriverMysql mysql driver type
-	DriverMysql = "mysql"
-	// DriverSQLite sqlite driver type
-	DriverSQLite = "sqlite"
-	// DriverSQLite3 sqlite driver type limit sqlite version: v3+
-	DriverSQLite3 = "sqlite3"
-
-	// singlePKCount primary keys count for single primary key
-	singlePKCount = 1
-	// attrSinglePK primary attr for single primary key
-	attrSinglePK = "PRIMARY KEY"
-
-	// emptyStrColAsignPart 数据表字符串列赋值为空值的表示
-	emptyStrColAsignPart = "''"
+	DriverMysql   = "mysql"   // DriverMysql mysql driver type
+	DriverSQLite  = "sqlite"  // DriverSQLite sqlite driver type
+	DriverSQLite3 = "sqlite3" // DriverSQLite3 sqlite driver type limit sqlite version: v3+
 )
 
-// tableCreateSQLTpl 创建表sql语句格式化模板
-const tableCreateSQLTpl = "CREATE TABLE IF NOT EXISTS %s (\n%s\n)"
+// record model struct tags.
+const (
+	DBSchemaTag = "db"   // struct field tag for table column schema.
+	DBJsonTag   = "json" //  struct field tag for marshal to json.
+)
 
-// ColSchema for table column
+// schema keys.
+const (
+	DBKeyNotNull       = "not_null"       // for col schema key: not_null.
+	DBKeyPrimary       = "primary"        //  for col schema key: primary.
+	DBKeyUnique        = "unique"         // for col schema key: uniq.
+	DBKeyDefault       = "default"        // for col schema key: default.
+	DBKeyType          = "type"           // for col schema key: type.
+	DBKeyKey           = "key"            // for col schema key: key.
+	DBKeyAutoIncrement = "auto_increment" // for col schema key: auto_increment.
+	DBKeyNotInsert     = "not_insert"     // for col schema key: not_insert.
+	DBKeyNotUpdate     = "not_update"     // for col schema key: not_update.
+	DBKeyOnUpdate      = "on_update"      // for col schema key: on_update => ON UPDATE.
+	DBKeyComplex       = "complex"        // the column should returned zero when simple list.
+	DBKeySplit         = "split"          // split table by column's value, usually value range is limited.
+)
+
+// SQL keywords.
+const (
+	AttrOnUpdateMySQL = "ON UPDATE" // AttrOnUpdateMySQL `on update` attribute for mysql table DDL.
+	AttrNotNullMySQL  = "NOT NULL"  // AttrNotNullMySQL `not null` attribute for mysql table DDL.
+	AttrNotNullSQLite = "NOT NULL"  // AttrNotNullSQLite `not null` attribute for sqlite table DDL.
+	AttrDefaultMySQL  = "DEFAULT"   // AttrDefaultMySQL `default` attribute for mysql table DDL.
+	AttrDefaultSQLite = "DEFAULT"   // AttrDefaultSQLite `default` attribute for sqlite table DDL.
+
+	DateTimeType         = "DATETIME"          // for db datetime type.
+	DBFnCurrentTimestamp = "CURRENT_TIMESTAMP" // is `CURRENT_TIMESTAMP`.
+)
+
+// constant values.
+const (
+	True  = "true"  // True for col schema val: true
+	False = "false" // False for col schema val: false
+)
+
+const (
+	singlePKCount        = 1             // primary keys count for single primary key.
+	attrKey              = "KEY"         // common key.
+	attrPrimaryKey       = "PRIMARY KEY" // attr for primary key.
+	attrUniqueKey        = "UNIQUE KEY"  // attr for unique key.
+	emptyStrColAsignPart = "''"          // zero string type column set value.
+	tableCreateSQLTpl    = "CREATE TABLE IF NOT EXISTS %s (\n%s\n)"
+)
+
+// ColSchema for table column.
 type ColSchema struct {
 	Name          string
 	JSONName      string
@@ -84,12 +73,13 @@ type ColSchema struct {
 	DefaultStr    string
 	AutoUpdateStr string
 	Default       bool
-	Key           bool
 	NotNull       bool
 	NotInsert     bool
 	NotUpdate     bool
 	AutoUpdate    bool
+	Key           bool
 	Primary       bool
+	Unique        bool
 	AutoIncrement bool
 	Complex       bool
 	Split         bool
@@ -104,7 +94,7 @@ func (c *ColSchema) colSchemaSQLite(onlyOnePrimaryCol bool) string {
 		line += fmt.Sprintf(" %s %s", AttrDefaultSQLite, c.DefaultStr)
 	}
 	if onlyOnePrimaryCol && c.Primary {
-		line += fmt.Sprintf(" %s", attrSinglePK)
+		line += fmt.Sprintf(" %s", attrPrimaryKey)
 	}
 
 	return line
@@ -123,7 +113,7 @@ func (c *ColSchema) colSchemaMysql(autoIncrementExp string, onlyOnePrimaryCol bo
 		line += fmt.Sprintf(" %s %s", AttrOnUpdateMySQL, c.AutoUpdateStr)
 	}
 	if onlyOnePrimaryCol && c.Primary {
-		line += fmt.Sprintf(" %s", attrSinglePK)
+		line += fmt.Sprintf(" %s", attrPrimaryKey)
 	}
 	if c.AutoIncrement {
 		line += autoIncrementExp
@@ -132,11 +122,27 @@ func (c *ColSchema) colSchemaMysql(autoIncrementExp string, onlyOnePrimaryCol bo
 	return line
 }
 
+// set key attr, order is : primary key > unique key > key
+func (c *ColSchema) setKeyAttrs() {
+	if c.Primary {
+		c.Unique = false
+		c.Key = false
+
+		// cannot accept NULL values when key is primary.
+		c.NotNull = true
+		return
+	}
+
+	if c.Unique {
+		c.Key = false
+	}
+}
+
 // TableSchema for table
 type TableSchema struct {
 	Driver         string
 	Name           string
-	Columns        []ColSchema
+	Columns        []*ColSchema
 	splitByColumns []string
 }
 
@@ -144,8 +150,8 @@ type TableSchema struct {
 func NewTableSchema(t reflect.Type) *TableSchema {
 	s := TableSchema{Columns: colSchemas(t)}
 	linq.From(s.Columns).
-		Where(func(c interface{}) bool { return c.(ColSchema).Split }).
-		Select(func(sc interface{}) interface{} { return sc.(ColSchema).Name }).
+		Where(func(c interface{}) bool { return c.(*ColSchema).Split }).
+		Select(func(sc interface{}) interface{} { return sc.(*ColSchema).Name }).
 		OrderBy(func(n interface{}) interface{} { return n }).
 		ToSlice(&s.splitByColumns)
 
@@ -241,22 +247,44 @@ func (t *TableSchema) ComplexColNames() []string {
 // KeyCol return key col name for table
 func (t *TableSchema) KeyCol() string {
 	for _, c := range t.Columns {
-		if c.AutoIncrement || c.Key {
+		shouldBeCommonKey := (c.AutoIncrement || c.Key) && (!c.Primary)
+		if shouldBeCommonKey {
 			return c.Name
 		}
 	}
+
 	return ""
 }
 
 // PrimaryCols return primary cols for table
 func (t *TableSchema) PrimaryCols() []string {
 	var ret []string
-	for _, c := range t.Columns {
+
+	var autoIncrementCol *ColSchema
+	for i, c := range t.Columns {
 		if c.Primary {
 			ret = append(ret, c.Name)
 		}
+		if c.AutoIncrement {
+			autoIncrementCol = t.Columns[i]
+		}
 	}
-	return ret
+
+	// none explicit primary keys, find auto increase key to set it as primary key.
+	if autoIncrementCol == nil {
+		return ret
+	}
+
+	switch t.Driver {
+	case DriverSQLite, DriverSQLite3:
+		sqliteAutoIncrementColDeal(autoIncrementCol)
+	case DriverMysql:
+		mysqlAutoIncrementColDeal(autoIncrementCol)
+	default:
+		return nil
+	}
+
+	return []string{autoIncrementCol.Name}
 }
 
 // InsertCols list all columns that should fill when inserting
@@ -330,10 +358,11 @@ func (t *TableSchema) schemaMysql() string {
 
 	// primary key 和 索引的设置
 	if len(primaryKeys) > singlePKCount {
-		lines = append(lines, fmt.Sprintf("%s (%s)", attrSinglePK, strings.Join(primaryKeys, ",")))
+		lines = append(lines, fmt.Sprintf("%s (%s)", attrPrimaryKey, strings.Join(primaryKeys, ",")))
 	}
+
 	if key := t.KeyCol(); key != "" {
-		lines = append(lines, fmt.Sprintf("KEY %s (%s)", key, key))
+		lines = append(lines, fmt.Sprintf("%s %s (%s)", attrKey, key, key))
 	}
 
 	return strings.Join(lines, ",\n")
@@ -359,7 +388,7 @@ func (t *TableSchema) schemaSQLite() string {
 	}
 
 	if len(primaryKeys) > singlePKCount {
-		lines = append(lines, fmt.Sprintf("%s (%s)", attrSinglePK, strings.Join(primaryKeys, ",")))
+		lines = append(lines, fmt.Sprintf("%s (%s)", attrPrimaryKey, strings.Join(primaryKeys, ",")))
 	}
 
 	return strings.Join(lines, ",\n")
@@ -504,18 +533,18 @@ func stringColSchemaValSetter(field *reflectx.FieldInfo, value string) string {
 	return setVal
 }
 
-func colSchemas(t reflect.Type) []ColSchema {
+func colSchemas(t reflect.Type) []*ColSchema {
 	structFieldJSONMap := parseStructJSONMap(t)
 
 	// 解析db相关标记
-	var schemas []ColSchema
+	var schemas []*ColSchema
 	fields := reflectx.NewMapper(DBSchemaTag).TypeMap(t).Tree.Children
 	for _, f := range fields {
 		column := colSchema(f, structFieldJSONMap)
 		if column == nil {
 			continue
 		}
-		schemas = append(schemas, *column)
+		schemas = append(schemas, column)
 	}
 
 	return schemas
@@ -539,6 +568,7 @@ func colSchema(field *reflectx.FieldInfo, structFieldJSONMap map[string]string) 
 	if field == nil {
 		return nil
 	}
+
 	// TODO: db类型在没有显示说明时，能从go类型中自动猜测
 	column := ColSchema{Name: field.Name}
 	if jv, ok := structFieldJSONMap[field.Field.Name]; ok {
@@ -567,12 +597,15 @@ func colSchema(field *reflectx.FieldInfo, structFieldJSONMap map[string]string) 
 		DBKeyNotInsert:     &column.NotInsert,
 		DBKeyNotUpdate:     &column.NotUpdate,
 	}
+
 	for s, p := range switchMap {
 		if v, ok := field.Options[s]; ok {
 			ret := v == True || v == ""
 			*p = ret
 		}
 	}
+
+	column.setKeyAttrs()
 
 	return &column
 }
@@ -587,4 +620,17 @@ func autoIncrementKey(driver string) string {
 
 	v := m[driver]
 	return v
+}
+
+func sqliteAutoIncrementColDeal(column *ColSchema) {
+	column.Primary = true
+	column.AutoIncrement = false
+	column.Type = "INTEGER"
+	column.setKeyAttrs()
+	column.NotNull = false
+}
+
+func mysqlAutoIncrementColDeal(column *ColSchema) {
+	column.Primary = true
+	column.setKeyAttrs()
 }

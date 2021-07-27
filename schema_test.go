@@ -114,7 +114,7 @@ func TestTableSchemaCreateSQL(t *testing.T) {
 	tableName := "test"
 	tests := []struct {
 		name          string
-		columns       []ColSchema
+		columns       []*ColSchema
 		driverWantMap map[string]string
 	}{
 		{
@@ -127,7 +127,7 @@ func TestTableSchemaCreateSQL(t *testing.T) {
 		},
 		{
 			"no_primary",
-			[]ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)"}},
+			[]*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)"}},
 			map[string]string{
 				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
 					"a varchar(32)",
@@ -139,13 +139,25 @@ func TestTableSchemaCreateSQL(t *testing.T) {
 		},
 		{
 			"primary",
-			[]ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true}},
+			[]*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true}},
 			map[string]string{
 				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
 					"a varchar(32) PRIMARY KEY",
 				}, ",\n")),
 				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
 					"a varchar(32) PRIMARY KEY",
+				}, ",\n")),
+			},
+		},
+		{
+			"auto increment without primary setted",
+			[]*ColSchema{{Name: "id", JSONName: "id", Type: "INT", AutoIncrement: true}},
+			map[string]string{
+				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
+					"id INT NOT NULL PRIMARY KEY AUTO_INCREMENT",
+				}, ",\n")),
+				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
+					"id INTEGER PRIMARY KEY",
 				}, ",\n")),
 			},
 		},
