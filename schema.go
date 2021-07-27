@@ -60,7 +60,8 @@ const (
 	singlePKCount        = 1             // primary keys count for single primary key.
 	attrKey              = "KEY"         // common key.
 	attrPrimaryKey       = "PRIMARY KEY" // attr for primary key.
-	attrUniqueKey        = "UNIQUE KEY"  // attr for unique key.
+	attrUniqueKeyMySQL   = "UNIQUE KEY"  // attr for mysql unique key.
+	attrUniqueKeySQLite  = "UNIQUE"      // attr for sqlite unique key.
 	emptyStrColAsignPart = "''"          // zero string type column set value.
 	tableCreateSQLTpl    = "CREATE TABLE IF NOT EXISTS %s (\n%s\n)"
 )
@@ -96,6 +97,9 @@ func (c *ColSchema) colSchemaSQLite(onlyOnePrimaryCol bool) string {
 	if onlyOnePrimaryCol && c.Primary {
 		line += fmt.Sprintf(" %s", attrPrimaryKey)
 	}
+	if c.Unique {
+		line += fmt.Sprintf(" %s", attrUniqueKeySQLite)
+	}
 
 	return line
 }
@@ -114,6 +118,9 @@ func (c *ColSchema) colSchemaMysql(autoIncrementExp string, onlyOnePrimaryCol bo
 	}
 	if onlyOnePrimaryCol && c.Primary {
 		line += fmt.Sprintf(" %s", attrPrimaryKey)
+	}
+	if c.Unique {
+		line += fmt.Sprintf(" %s", attrUniqueKeyMySQL)
 	}
 	if c.AutoIncrement {
 		line += autoIncrementExp
@@ -591,6 +598,7 @@ func colSchema(field *reflectx.FieldInfo, structFieldJSONMap map[string]string) 
 		DBKeyKey:           &column.Key,
 		DBKeyAutoIncrement: &column.AutoIncrement,
 		DBKeyPrimary:       &column.Primary,
+		DBKeyUnique:        &column.Unique,
 		DBKeyComplex:       &column.Complex,
 		DBKeySplit:         &column.Split,
 		DBKeyNotNull:       &column.NotNull,

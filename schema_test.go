@@ -161,6 +161,18 @@ func TestTableSchemaCreateSQL(t *testing.T) {
 				}, ",\n")),
 			},
 		},
+		{
+			"unique key",
+			[]*ColSchema{{Name: "id", JSONName: "id", Type: "INT", Unique: true}},
+			map[string]string{
+				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
+					"id INT UNIQUE KEY",
+				}, ",\n")),
+				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
+					"id INT UNIQUE",
+				}, ",\n")),
+			},
+		},
 	}
 
 	for _, tt := range tests {
