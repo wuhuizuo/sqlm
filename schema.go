@@ -1,6 +1,7 @@
 package sqlm
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -264,7 +265,7 @@ func (t *TableSchema) KeyCol() string {
 }
 
 // PrimaryCols return primary cols for table
-func (t *TableSchema) PrimaryCols() []string {
+func (t *TableSchema) PrimaryCols() ([]string, error) {
 	var ret []string
 
 	var autoIncrementCol *ColSchema
@@ -279,19 +280,26 @@ func (t *TableSchema) PrimaryCols() []string {
 
 	// none explicit primary keys, find auto increase key to set it as primary key.
 	if autoIncrementCol == nil {
-		return ret
+		return ret, nil
 	}
 
 	switch t.Driver {
 	case DriverSQLite, DriverSQLite3:
+		if len(ret) > 0 {
+			return nil, errors.New("sqlite not support both auto increment and other primary columns at same time")
+		}
 		sqliteAutoIncrementColDeal(autoIncrementCol)
 	case DriverMysql:
+		if len(ret) > 0 {
+			return ret, nil
+		}
+
 		mysqlAutoIncrementColDeal(autoIncrementCol)
 	default:
-		return nil
+		return nil, nil
 	}
 
-	return []string{autoIncrementCol.Name}
+	return append(ret, autoIncrementCol.Name), nil
 }
 
 // InsertCols list all columns that should fill when inserting
@@ -339,27 +347,35 @@ func (t *TableSchema) UpdatePatternsWhenDup() string {
 }
 
 // schema return table's all columns schema
-func (t *TableSchema) schema() string {
+func (t *TableSchema) schema() (string, error) {
 	switch t.Driver {
 	case DriverMysql:
 		return t.schemaMysql()
 	case DriverSQLite, DriverSQLite3:
 		return t.schemaSQLite()
 	default:
-		return ""
+		return "", fmt.Errorf("not support driver: %s", t.Driver)
 	}
 }
 
-func (t *TableSchema) schemaMysql() string {
-	var lines []string
+func (t *TableSchema) schemaMysql() (string, error) {
 	var onlyOnePrimaryCol bool
 
-	primaryKeys := t.PrimaryCols()
+	primaryKeys, err := t.PrimaryCols()
+	if err != nil {
+		return "", err
+	}
+
 	if len(primaryKeys) == singlePKCount {
 		onlyOnePrimaryCol = true
 	}
 	autoIncrementExp := " " + autoIncrementKey(t.Driver)
+
+	var lines []string
 	for _, c := range t.Columns {
+		if c.AutoIncrement {
+			c.NotNull = true
+		}
 		lines = append(lines, c.colSchemaMysql(autoIncrementExp, onlyOnePrimaryCol))
 	}
 
@@ -372,19 +388,16 @@ func (t *TableSchema) schemaMysql() string {
 		lines = append(lines, fmt.Sprintf("%s %s (%s)", attrKey, key, key))
 	}
 
-	return strings.Join(lines, ",\n")
+	return strings.Join(lines, ",\n"), nil
 }
 
-func (t *TableSchema) schemaSQLite() string {
-	// SQLite 不推荐用 AutoIncrement,如果作为主键,会自增长的
-	for i, c := range t.Columns {
-		if c.AutoIncrement {
-			t.Columns[i].Primary = true
-		}
+func (t *TableSchema) schemaSQLite() (string, error) {
+	var onlyOnePrimaryCol bool
+	primaryKeys, err := t.PrimaryCols()
+	if err != nil {
+		return "", nil
 	}
 
-	var onlyOnePrimaryCol bool
-	primaryKeys := t.PrimaryCols()
 	if len(primaryKeys) == singlePKCount {
 		onlyOnePrimaryCol = true
 	}
@@ -398,7 +411,7 @@ func (t *TableSchema) schemaSQLite() string {
 		lines = append(lines, fmt.Sprintf("%s (%s)", attrPrimaryKey, strings.Join(primaryKeys, ",")))
 	}
 
-	return strings.Join(lines, ",\n")
+	return strings.Join(lines, ",\n"), nil
 }
 
 // CreateSQL return sql statement for creating table, like:
@@ -408,7 +421,11 @@ func (t *TableSchema) schemaSQLite() string {
 // 	   last_name text NOT NULL
 //   );
 func (t *TableSchema) CreateSQL() string {
-	schemaSQL := t.schema()
+	schemaSQL, err := t.schema()
+	if err != nil {
+		return ""
+	}
+
 	query := fmt.Sprintf(tableCreateSQLTpl, t.Name, schemaSQL)
 	return query
 }
@@ -472,7 +489,13 @@ func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (Query, map[s
 // UniqWhereFormatter uniq record select filter
 func UniqWhereFormatter(t *Table) string {
 	var whereFormater []string
-	for _, k := range t.Schema().PrimaryCols() {
+
+	pCols, err := t.Schema().PrimaryCols()
+	if err != nil {
+		return ""
+	}
+
+	for _, k := range pCols {
 		whereFormater = append(whereFormater, fmt.Sprintf("%s=:%s", k, k))
 	}
 	return strings.Join(whereFormater, " AND ")
@@ -631,8 +654,8 @@ func autoIncrementKey(driver string) string {
 }
 
 func sqliteAutoIncrementColDeal(column *ColSchema) {
-	column.Primary = true
 	column.AutoIncrement = false
+	column.Primary = true
 	column.Type = "INTEGER"
 	column.setKeyAttrs()
 	column.NotNull = false

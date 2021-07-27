@@ -86,7 +86,11 @@ func (t *Table) save(record interface{}) error {
 	if idKey != "" {
 		pCols = append(pCols, idKey)
 	} else {
-		pCols = t.Schema().PrimaryCols()
+		var err error
+		pCols, err = t.Schema().PrimaryCols()
+		if err != nil {
+			return err
+		}
 	}
 	if len(pCols) == 0 {
 		return &ErrorSQLInvalid{Message: "table schema should has one key col or primary col setted"}
@@ -266,7 +270,12 @@ func insertConflictUpdatePattern(schema *TableSchema) string {
 			return fmt.Sprintf(conflictUpdateTpl, dupUpdatePattern)
 		case DriverSQLite, DriverSQLite3:
 			conflictUpdateTpl = " ON CONFLICT(%s) DO UPDATE SET %s"
-			return fmt.Sprintf(conflictUpdateTpl, strings.Join(schema.PrimaryCols(), ","), dupUpdatePattern)
+			pCols, err := schema.PrimaryCols()
+			if err != nil {
+				return ""
+			}
+
+			return fmt.Sprintf(conflictUpdateTpl, strings.Join(pCols, ","), dupUpdatePattern)
 		default:
 			return conflictUpdateTpl
 		}

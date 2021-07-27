@@ -112,80 +112,119 @@ func TestTableSchemaTargetName(t *testing.T) {
 
 func TestTableSchemaCreateSQL(t *testing.T) {
 	tableName := "test"
+
 	tests := []struct {
-		name          string
-		columns       []*ColSchema
-		driverWantMap map[string]string
+		name      string
+		columns   []*ColSchema
+		driver    string
+		wantLines []string
 	}{
 		{
-			"no_cols",
-			nil,
-			map[string]string{
-				DriverMysql:  fmt.Sprintf(tableCreateSQLTpl, tableName, ""),
-				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, ""),
+			name:      "no_cols - mysql",
+			columns:   nil,
+			driver:    DriverMysql,
+			wantLines: nil,
+		},
+		{
+			name:      "no_cols - sqlite",
+			columns:   nil,
+			driver:    DriverSQLite,
+			wantLines: nil,
+		},
+		{
+			name:    "no_primary - mysql",
+			columns: []*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)"}},
+			driver:  DriverMysql,
+			wantLines: []string{
+				"a varchar(32)",
 			},
 		},
 		{
-			"no_primary",
-			[]*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)"}},
-			map[string]string{
-				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"a varchar(32)",
-				}, ",\n")),
-				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"a varchar(32)",
-				}, ",\n")),
+			name:    "no_primary - sqlite",
+			columns: []*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)"}},
+
+			driver: DriverSQLite,
+			wantLines: []string{
+				"a varchar(32)",
 			},
 		},
 		{
-			"primary",
-			[]*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true}},
-			map[string]string{
-				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"a varchar(32) PRIMARY KEY",
-				}, ",\n")),
-				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"a varchar(32) PRIMARY KEY",
-				}, ",\n")),
+			name:    "primary - mysql",
+			columns: []*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true}},
+			driver:  DriverMysql,
+			wantLines: []string{
+				"a varchar(32) PRIMARY KEY",
 			},
 		},
 		{
-			"auto increment without primary setted",
-			[]*ColSchema{{Name: "id", JSONName: "id", Type: "INT", AutoIncrement: true}},
-			map[string]string{
-				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"id INT NOT NULL PRIMARY KEY AUTO_INCREMENT",
-				}, ",\n")),
-				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"id INTEGER PRIMARY KEY",
-				}, ",\n")),
+			name:    "primary - sqlite",
+			columns: []*ColSchema{{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true}},
+			driver:  DriverSQLite,
+			wantLines: []string{
+				"a varchar(32) PRIMARY KEY",
 			},
 		},
 		{
-			"unique key",
-			[]*ColSchema{{Name: "id", JSONName: "id", Type: "INT", Unique: true}},
-			map[string]string{
-				DriverMysql: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"id INT UNIQUE KEY",
-				}, ",\n")),
-				DriverSQLite: fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join([]string{
-					"id INT UNIQUE",
-				}, ",\n")),
+			name: "multi primary key member - mysql",
+			columns: []*ColSchema{
+				{Name: "id", JSONName: "id", Type: "INT", AutoIncrement: true},
+				{Name: "a", JSONName: "a", Type: "varchar(32)", Primary: true},
+				{Name: "b", JSONName: "b", Type: "varchar(32)", Primary: true},
+			},
+			driver: DriverMysql,
+			wantLines: []string{
+				"id INT NOT NULL AUTO_INCREMENT",
+				"a varchar(32)",
+				"b varchar(32)",
+				"PRIMARY KEY (a,b)",
+				"KEY id (id)",
+			},
+		},
+		{
+			name:    "auto increment without primary setted - mysql",
+			columns: []*ColSchema{{Name: "id", JSONName: "id", Type: "INT", AutoIncrement: true}},
+			driver:  DriverMysql,
+			wantLines: []string{
+				"id INT NOT NULL PRIMARY KEY AUTO_INCREMENT",
+			},
+		},
+		{
+			name:    "auto increment without primary setted - sqlite",
+			columns: []*ColSchema{{Name: "id", JSONName: "id", Type: "INT", AutoIncrement: true}},
+			driver:  DriverSQLite,
+			wantLines: []string{
+				"id INTEGER PRIMARY KEY",
+			},
+		},
+		{
+			name:    "unique key - mysql",
+			columns: []*ColSchema{{Name: "id", JSONName: "id", Type: "INT", Unique: true}},
+			driver:  DriverMysql,
+			wantLines: []string{
+				"id INT UNIQUE KEY",
+			},
+		},
+		{
+			name:    "unique key - sqlite",
+			columns: []*ColSchema{{Name: "id", JSONName: "id", Type: "INT", Unique: true}},
+			driver:  DriverSQLite,
+			wantLines: []string{
+				"id INT UNIQUE",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for k, want := range tt.driverWantMap {
-				s := &TableSchema{
-					Driver:  k,
-					Name:    tableName,
-					Columns: tt.columns,
-				}
-				if got := s.CreateSQL(); got != want {
-					t.Errorf("TableSchema.CreateSQL() = %v, want %v", got, want)
-				}
+			s := &TableSchema{
+				Driver:  tt.driver,
+				Name:    tableName,
+				Columns: tt.columns,
+			}
+			want := fmt.Sprintf(tableCreateSQLTpl, tableName, strings.Join(tt.wantLines, ",\n"))
+
+			if got := s.CreateSQL(); got != want {
+				t.Errorf("TableSchema.CreateSQL() = %v, want %v", got, want)
 			}
 		})
 	}
