@@ -1,13 +1,14 @@
 package sqlm
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// Database sql database
+// Database sql database.
 //	dns format:
 //		mysql: 	 [username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
 //		sqlite3: file:test.db[?param1=value1&...&paramN=valueN]
@@ -17,7 +18,7 @@ type Database struct {
 	dbCon  *sqlx.DB
 }
 
-// Con new/reuse db connection
+// Con new/reuse db connection.
 func (p *Database) Con() (*sqlx.DB, error) {
 	if p.dbCon != nil {
 		return p.dbCon, nil
@@ -39,6 +40,11 @@ func (p *Database) Con() (*sqlx.DB, error) {
 	return db, err
 }
 
+// SetCon set `dbCon` field for testability.
+func (p *Database) SetCon(con *sql.DB) {
+	p.dbCon = sqlx.NewDb(con, p.Driver)
+}
+
 func (p *Database) newCon() (*sqlx.DB, error) {
 	db, err := sqlx.Open(p.Driver, p.DSN)
 	if err != nil {
@@ -51,7 +57,7 @@ func (p *Database) newCon() (*sqlx.DB, error) {
 	return db, nil
 }
 
-// Close db connection
+// Close db connection.
 func (p *Database) Close() error {
 	if p.dbCon == nil {
 		return fmt.Errorf("db connection is not initialized")

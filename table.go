@@ -93,8 +93,7 @@ func (t *Table) Create() error {
 	return nil
 }
 
-// Insert records to Table
-// 	if has dup keys record, then update it
+// Insert records to table.
 func (t *Table) Insert(record interface{}) (int64, error) {
 	// call before hooks.
 	for _, hook := range t.TableHooks.Insert.Before {
