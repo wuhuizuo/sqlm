@@ -11,6 +11,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type targetQuery struct {
+	targetTable string
+	query       string
+}
+
 func (t *Table) initSchema() {
 	if t.rowModeler == nil {
 		return
@@ -39,10 +44,25 @@ func (t *Table) inserts(records []interface{}) ([]int64, error) {
 	return ret, nil
 }
 
-// insert records to Table
-// 	if has dup keys record, then update it
+// insert records to table.
+// 	if has dup keys record, then return error.
 func (t *Table) insert(record interface{}) (int64, error) {
-	// 针对无重复记录的情况下的插入
+	insertQuery, err := t.composeInsertQuery(record)
+	if err != nil {
+		return 0, err
+	}
+
+	// 语句执行
+	ret, err := t.execWithAutoCreate(insertQuery, record)
+	if err == nil && ret != nil {
+		insertID, _ := ret.LastInsertId()
+		return insertID, nil
+	}
+
+	return 0, err
+}
+
+func (t *Table) composeInsertQuery(record interface{}) (*targetQuery, error) {
 	var insertPatterns []string
 	insertKeys := t.Schema().InsertCols()
 	for _, k := range insertKeys {
@@ -56,19 +76,11 @@ func (t *Table) insert(record interface{}) (int64, error) {
 	queryTpl := "INSERT INTO %s (%s) VALUES (%s)"
 	targetTable, err := t.Schema().TargetName(record)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	query = fmt.Sprintf(queryTpl, targetTable, insertKeysStr, insertValPatternStr)
-	query += insertConflictUpdatePattern(t.Schema())
 
-	// 语句执行
-	ret, err := t.execWithAutoCreate(targetTable, query, record)
-	if err == nil && ret != nil {
-		insertID, _ := ret.LastInsertId()
-		return insertID, nil
-	}
-
-	return 0, err
+	return &targetQuery{targetTable, query}, nil
 }
 
 func (t *Table) save(record interface{}) error {
@@ -118,7 +130,7 @@ func (t *Table) save(record interface{}) error {
 	return execErr
 }
 
-// update records in Table
+// update records in Table.
 func (t *Table) update(filter RowFilter, updatePayload interface{}, updateFields []string) (int64, error) {
 	var rowsAffect int64
 
@@ -188,17 +200,17 @@ func (t *Table) execWhenExist(query string, arg interface{}) (ret sql.Result, er
 	return ret, err
 }
 
-func (t *Table) execWithAutoCreate(table, query string, arg interface{}) (ret sql.Result, err error) {
+func (t *Table) execWithAutoCreate(query *targetQuery, arg interface{}) (ret sql.Result, err error) {
 	exec := func(et *Table) error {
 		con, errCon := et.Con()
 		if errCon == nil {
-			ret, errCon = con.NamedExec(query, arg)
+			ret, errCon = con.NamedExec(query.query, arg)
 		}
 
 		return errCon
 	}
 
-	err = doWithAutoCreate(t, table, exec)
+	err = doWithAutoCreate(t, query.targetTable, exec)
 	return ret, err
 }
 
@@ -258,30 +270,6 @@ func (t *Table) queryWhenExist(query string, arg interface{}) (rows *sqlx.Rows, 
 
 	err = doWhenTableExist(t, exec)
 	return rows, err
-}
-
-func insertConflictUpdatePattern(schema *TableSchema) string {
-	dupUpdatePattern := schema.UpdatePatternsWhenDup()
-	var conflictUpdateTpl string
-	if len(dupUpdatePattern) > 0 {
-		switch schema.Driver {
-		case DriverMysql:
-			conflictUpdateTpl = " ON DUPLICATE KEY UPDATE %s"
-			return fmt.Sprintf(conflictUpdateTpl, dupUpdatePattern)
-		case DriverSQLite, DriverSQLite3:
-			conflictUpdateTpl = " ON CONFLICT(%s) DO UPDATE SET %s"
-			pCols, err := schema.PrimaryCols()
-			if err != nil {
-				return ""
-			}
-
-			return fmt.Sprintf(conflictUpdateTpl, strings.Join(pCols, ","), dupUpdatePattern)
-		default:
-			return conflictUpdateTpl
-		}
-	}
-
-	return conflictUpdateTpl
 }
 
 func formatCondition(v interface{}) string {
