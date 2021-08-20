@@ -3,6 +3,7 @@ package sqlm
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -28,6 +29,21 @@ func (t *Table) initSchema() {
 	}
 	t.schema.Driver = driver
 	t.schema.Name = t.TableName
+}
+
+// scanRow scan struct from table row
+func (t *Table) scanRow(rows *sqlx.Rows) (interface{}, error) {
+	record := t.RowModel()
+	if rows == nil {
+		return nil, errors.New("empty rows")
+	}
+
+	err := rows.StructScan(record)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
 }
 
 func (t *Table) inserts(records []interface{}) ([]int64, error) {
@@ -64,7 +80,7 @@ func (t *Table) insert(record interface{}) (int64, error) {
 
 func (t *Table) composeInsertQuery(record interface{}) (*targetQuery, error) {
 	var insertPatterns []string
-	insertKeys := t.Schema().InsertCols()
+	insertKeys := t.getSchema().InsertCols()
 	for _, k := range insertKeys {
 		insertPatterns = append(insertPatterns, ":"+k)
 	}
@@ -74,7 +90,7 @@ func (t *Table) composeInsertQuery(record interface{}) (*targetQuery, error) {
 	// 语句组装
 	var query string
 	queryTpl := "INSERT INTO %s (%s) VALUES (%s)"
-	targetTable, err := t.Schema().TargetName(record)
+	targetTable, err := t.getSchema().TargetName(record)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +101,7 @@ func (t *Table) composeInsertQuery(record interface{}) (*targetQuery, error) {
 
 func (t *Table) save(record interface{}) error {
 	// 更新部分组装
-	updateFields := t.Schema().UpdateColsWhenDup()
+	updateFields := t.getSchema().UpdateColsWhenDup()
 	var updatePatterns []string
 	for _, k := range updateFields {
 		updatePatterns = append(updatePatterns, k+"=:"+k)
@@ -94,12 +110,12 @@ func (t *Table) save(record interface{}) error {
 	// 过滤条件组装
 	var wherePatterns []string
 	var pCols []string
-	idKey := t.Schema().KeyCol()
+	idKey := t.getSchema().KeyCol()
 	if idKey != "" {
 		pCols = append(pCols, idKey)
 	} else {
 		var err error
-		pCols, err = t.Schema().PrimaryCols()
+		pCols, err = t.getSchema().PrimaryCols()
 		if err != nil {
 			return err
 		}
@@ -112,7 +128,7 @@ func (t *Table) save(record interface{}) error {
 	}
 
 	// 整体语句组合
-	targetTable, err := t.Schema().TargetName(record)
+	targetTable, err := t.getSchema().TargetName(record)
 	if err != nil {
 		return err
 	}
@@ -147,7 +163,7 @@ func (t *Table) update(filter RowFilter, updatePayload interface{}, updateFields
 	}
 
 	// 组合sql语句
-	targetTable, err := t.Schema().TargetName(filter)
+	targetTable, err := t.getSchema().TargetName(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -177,7 +193,7 @@ func (t *Table) deleteRows(filter RowFilter) (sql.Result, error) {
 	}
 
 	// 组合sql语句并执行
-	targetTable, err := t.Schema().TargetName(filter)
+	targetTable, err := t.getSchema().TargetName(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +230,27 @@ func (t *Table) execWithAutoCreate(query *targetQuery, arg interface{}) (ret sql
 	return ret, err
 }
 
+func (t *Table) getSchema() *TableSchema {
+	t.once.Do(t.initSchema)
+
+	return t.schema
+}
+
+// uniqWhereFormatter get uniq record select filter
+func (t *Table) uniqWhereFormatter() string {
+	var whereFormater []string
+
+	pCols, err := t.getSchema().PrimaryCols()
+	if err != nil {
+		return ""
+	}
+
+	for _, k := range pCols {
+		whereFormater = append(whereFormater, fmt.Sprintf("%s=:%s", k, k))
+	}
+	return strings.Join(whereFormater, " AND ")
+}
+
 func doWhenTableExist(t *Table, do func(t *Table) error) error {
 	tableNotExistErrMsgReg := regexp.MustCompile(TableNotExistErrorRegex)
 	err := do(t)
@@ -234,7 +271,7 @@ func doWithAutoCreate(t *Table, targetTable string, do func(t *Table) error) err
 	}
 
 	// 如果错误类型是数据表不存在,则自动创建并重调
-	schema := *t.Schema()
+	schema := *t.getSchema()
 	schema.Name = targetTable
 	createSQL := schema.CreateSQL()
 
@@ -301,7 +338,7 @@ func loadDataForUpdate(t *Table, src map[string]interface{}, dest interface{}) (
 		return updateFields, err
 	}
 
-	for _, c := range t.Schema().Columns {
+	for _, c := range t.getSchema().Columns {
 		if _, ok := src[c.JSONName]; ok {
 			updateFields = append(updateFields, c.Name)
 		}

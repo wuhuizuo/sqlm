@@ -2,20 +2,17 @@ package sqlm
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/jmoiron/sqlx"
 )
 
 // TableNotExistErrorRegex for table not exist db response
 const TableNotExistErrorRegex = `[tT]able\s+.+\s+doesn't\s+exist`
 
-// SQL 关键字
-//	 这个作为基础库需要支持灵活的sql查询/操作,用占位符的方式满足不了这个要求。
-//   CodeCC在这里扫描在这里遇到sql拼装或者格式化组合时会告警。
+// SQL 关键字.
+//
+// 这个作为基础库需要支持灵活的sql查询/操作,用占位符的方式满足不了这个要求。
 const (
 	SQLKeyUpdate = "UPDATE"
 	SQLKeySet    = "SET"
@@ -23,6 +20,8 @@ const (
 	SQLKeyWhere  = "WHERE"
 	SQLKeyFrom   = "FROM"
 )
+
+var _ TableAble = (*Table)(nil)
 
 // JoinReplacer 联合查询表明替换信息
 type JoinReplacer struct {
@@ -66,13 +65,6 @@ func (t *Table) SetRowModel(modeler func() interface{}) {
 	t.rowModeler = modeler
 }
 
-// Schema of table
-func (t *Table) Schema() *TableSchema {
-	t.once.Do(t.initSchema)
-
-	return t.schema
-}
-
 // Create table if not exists
 func (t *Table) Create() error {
 	if err := t.Database.Create(); err != nil {
@@ -84,7 +76,7 @@ func (t *Table) Create() error {
 		return err
 	}
 
-	createSQL := t.Schema().CreateSQL()
+	createSQL := t.getSchema().CreateSQL()
 	_, err = con.Exec(createSQL)
 	if err != nil {
 		return fmt.Errorf("%w\n sql: %s", err, createSQL)
@@ -119,12 +111,12 @@ func (t *Table) Insert(record interface{}) (int64, error) {
 
 // IsDup record in table
 func (t *Table) IsDup(row interface{}) (interface{}, error) {
-	whereFormatter := UniqWhereFormatter(t)
-	targetTable, err := t.Schema().TargetName(row)
+	whereFormatter := t.uniqWhereFormatter()
+	targetTable, err := t.getSchema().TargetName(row)
 	if err != nil {
 		return nil, err
 	}
-	query := fmt.Sprintf("select %s from %s", strings.Join(t.Schema().ColNames(true), ","), targetTable)
+	query := fmt.Sprintf("select %s from %s", strings.Join(t.getSchema().ColNames(true), ","), targetTable)
 	if whereFormatter != "" {
 		query += " where " + whereFormatter
 	}
@@ -142,7 +134,7 @@ func (t *Table) IsDup(row interface{}) (interface{}, error) {
 
 	var records []interface{}
 	for rows.Next() {
-		record, err := t.ScanRow(rows)
+		record, err := t.scanRow(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +263,7 @@ func (t *Table) Delete(filter RowFilter) error {
 // List Records from Table
 func (t *Table) List(filter RowFilter, options ListOptions) ([]interface{}, error) {
 	records := make([]interface{}, 0)
-	query, wherePatterns, err := t.Schema().SelectSQL(filter, options)
+	query, wherePatterns, err := t.getSchema().SelectSQL(filter, options)
 	if err != nil {
 		return records, err
 	}
@@ -288,7 +280,7 @@ func (t *Table) List(filter RowFilter, options ListOptions) ([]interface{}, erro
 	defer rows.Close()
 
 	for rows.Next() {
-		record, err := t.ScanRow(rows)
+		record, err := t.scanRow(rows)
 		if err != nil {
 			fmt.Printf("sqlx scan error: %s\n%s\n", err.Error(), &query)
 			return records, err
@@ -304,7 +296,7 @@ func (t *Table) List(filter RowFilter, options ListOptions) ([]interface{}, erro
 
 // GetFirst Record from Table by filter
 func (t *Table) Get(filter RowFilter, record interface{}) error {
-	query, wherePatterns, err := t.Schema().SelectSQL(filter, ListOptions{AllColumns: true, Limit: 1})
+	query, wherePatterns, err := t.getSchema().SelectSQL(filter, ListOptions{AllColumns: true, Limit: 1})
 	if err != nil {
 		return err
 	}
@@ -325,19 +317,4 @@ func (t *Table) Get(filter RowFilter, record interface{}) error {
 	}
 
 	return rows.StructScan(record)
-}
-
-// ScanRow scan struct from table row
-func (t *Table) ScanRow(rows *sqlx.Rows) (interface{}, error) {
-	record := t.RowModel()
-	if rows == nil {
-		return nil, errors.New("empty rows")
-	}
-
-	err := rows.StructScan(record)
-	if err != nil {
-		return nil, err
-	}
-
-	return record, nil
 }

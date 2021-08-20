@@ -21,6 +21,24 @@ var (
 	}
 )
 
+// TableAble is the interface that groups table curd methods.
+type TableAble interface {
+	Con() (*sqlx.DB, error)
+	RowModel() interface{}
+	SetRowModel(func() interface{})
+	Create() error
+	Insert(interface{}) (int64, error)
+	Inserts([]interface{}) ([]int64, error)
+	Save(interface{}) error
+	Update(RowFilter, map[string]interface{}) error
+	Delete(RowFilter) error
+	Get(RowFilter, interface{}) error
+	List(RowFilter, ListOptions) ([]interface{}, error)
+	IsDup(interface{}) (interface{}, error)
+}
+
+type dbOptionSetter func(*sqlx.DB)
+
 // RegisterDBCreator register database create for given driver.
 func RegisterDBCreator(name string, driver DatabaseCreator) {
 	createDriversMu.Lock()
@@ -59,22 +77,19 @@ func DBCreateDrivers() []string {
 	return list
 }
 
-// DBCreateIterStructField 遍历配置模型的各个配置属性创建数据表
+// DBCreateIterStructField 遍历配置模型的各个配置属性创建数据表.
 func DBCreateIterStructField(val reflect.Value, optionSetter dbOptionSetter) error {
 	var dbCons []*sqlx.DB
 
 	for i := 0; i < val.NumField(); i++ {
-		vf := val.Field(i)
-		if vf.IsNil() || vf.MethodByName("Create").IsZero() {
-			continue
-		}
-
-		dbCon, err := tableCreate(vf)
+		dbCon, err := createReflectTable(val.Field(i))
 		if err != nil {
 			return err
 		}
 
-		dbCons = append(dbCons, dbCon)
+		if dbCon != nil {
+			dbCons = append(dbCons, dbCon)
+		}
 	}
 
 	if optionSetter == nil {
@@ -86,4 +101,22 @@ func DBCreateIterStructField(val reflect.Value, optionSetter dbOptionSetter) err
 	}
 
 	return nil
+}
+
+// createReflectTable 依据数据表反射值进行创建.
+func createReflectTable(vf reflect.Value) (*sqlx.DB, error) {
+	if vf.IsNil() || !vf.CanInterface() {
+		return nil, nil
+	}
+
+	table, ok := vf.Interface().(TableAble)
+	if !ok {
+		return nil, nil
+	}
+
+	if err := table.Create(); err != nil {
+		return nil, err
+	}
+
+	return table.Con()
 }
