@@ -490,7 +490,7 @@ func (t *TableSchema) SelectSQL(rf RowFilter, options ListOptions) (Query, map[s
 func UniqWhereFormatter(t *Table) string {
 	var whereFormater []string
 
-	pCols, err := t.Schema().PrimaryCols()
+	pCols, err := t.getSchema().PrimaryCols()
 	if err != nil {
 		return ""
 	}

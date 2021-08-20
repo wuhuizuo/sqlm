@@ -17,8 +17,10 @@ func TestDBCreateIterStructField(t *testing.T) {
 	defer fakeServer.Close()
 
 	type dbGroupStruct struct {
-		Test1 *Table
+		Test1 TableAble
 		Test2 *Table
+		Test3 TableAble
+		Test4 *Table
 	}
 
 	t1 := &Table{
