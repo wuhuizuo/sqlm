@@ -272,30 +272,6 @@ func (t *Table) queryWhenExist(query string, arg interface{}) (rows *sqlx.Rows, 
 	return rows, err
 }
 
-func insertConflictUpdatePattern(schema *TableSchema) string {
-	dupUpdatePattern := schema.UpdatePatternsWhenDup()
-	var conflictUpdateTpl string
-	if len(dupUpdatePattern) > 0 {
-		switch schema.Driver {
-		case DriverMysql:
-			conflictUpdateTpl = " ON DUPLICATE KEY UPDATE %s"
-			return fmt.Sprintf(conflictUpdateTpl, dupUpdatePattern)
-		case DriverSQLite, DriverSQLite3:
-			conflictUpdateTpl = " ON CONFLICT(%s) DO UPDATE SET %s"
-			pCols, err := schema.PrimaryCols()
-			if err != nil {
-				return ""
-			}
-
-			return fmt.Sprintf(conflictUpdateTpl, strings.Join(pCols, ","), dupUpdatePattern)
-		default:
-			return conflictUpdateTpl
-		}
-	}
-
-	return conflictUpdateTpl
-}
-
 func formatCondition(v interface{}) string {
 	switch v := v.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
