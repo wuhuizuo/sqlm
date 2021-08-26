@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/jmoiron/sqlx"
 )
 
 func TestDBCreateIterStructField(t *testing.T) {
@@ -45,9 +47,13 @@ func TestDBCreateIterStructField(t *testing.T) {
 	dbGroup.Test2.SetRowModel(func() interface{} { return &testRecord{} })
 
 	t.Run("ok", func(t *testing.T) {
-		err := DBCreateIterStructField(reflect.ValueOf(dbGroup), nil)
+		err := DBCreateIterStructField(reflect.ValueOf(dbGroup), testDBConOptionSet)
 		if err != nil {
 			t.Errorf("DBCreateIterStructField() error = %v, wantErr %v", err, false)
 		}
 	})
+}
+
+func testDBConOptionSet(con *sqlx.DB) {
+	con.SetMaxIdleConns(10)
 }
